@@ -14,26 +14,27 @@ interface StatCardProps {
 function StatCard({ title, value, change, icon, iconBg }: StatCardProps) {
   return (
     <Card className="hover:shadow-md transition-all duration-300 border-border/50 hover:border-primary/20">
-      <CardContent className="p-6">
-        <div className="flex items-start justify-between">
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">{title}</p>
-            <p className="text-3xl font-bold text-foreground">{value}</p>
+      <CardContent className="p-4 lg:p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div className="space-y-1 lg:space-y-2 min-w-0">
+            <p className="text-xs lg:text-sm font-medium text-muted-foreground truncate">{title}</p>
+            <p className="text-2xl lg:text-3xl font-bold text-foreground">{value}</p>
             {change !== undefined && (
               <div className={cn(
-                "flex items-center gap-1 text-sm font-medium",
+                "flex items-center gap-1 text-xs lg:text-sm font-medium",
                 change >= 0 ? "text-emerald-600" : "text-destructive"
               )}>
                 {change >= 0 ? (
-                  <ArrowUpRight className="h-4 w-4" />
+                  <ArrowUpRight className="h-3 w-3 lg:h-4 lg:w-4" />
                 ) : (
-                  <ArrowDownRight className="h-4 w-4" />
+                  <ArrowDownRight className="h-3 w-3 lg:h-4 lg:w-4" />
                 )}
-                <span>{Math.abs(change)}% from last week</span>
+                <span className="hidden sm:inline">{Math.abs(change)}% from last week</span>
+                <span className="sm:hidden">{Math.abs(change)}%</span>
               </div>
             )}
           </div>
-          <div className={cn("p-3 rounded-xl", iconBg)}>
+          <div className={cn("p-2 lg:p-3 rounded-xl shrink-0", iconBg)}>
             {icon}
           </div>
         </div>
@@ -51,29 +52,29 @@ export function DashboardStats() {
   const pendingFollowup = clients.filter(c => c.followUpRequired).length;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
       <StatCard
         title="Total Clients"
         value={totalClients}
-        icon={<Users className="h-6 w-6 text-primary" />}
+        icon={<Users className="h-5 w-5 lg:h-6 lg:w-6 text-primary" />}
         iconBg="bg-primary/10"
       />
       <StatCard
         title="Hot Leads"
         value={hotLeads}
-        icon={<TrendingUp className="h-6 w-6 text-destructive" />}
+        icon={<TrendingUp className="h-5 w-5 lg:h-6 lg:w-6 text-destructive" />}
         iconBg="bg-destructive/10"
       />
       <StatCard
         title="Converted"
         value={converted}
-        icon={<Phone className="h-6 w-6 text-emerald-600" />}
+        icon={<Phone className="h-5 w-5 lg:h-6 lg:w-6 text-emerald-600" />}
         iconBg="bg-emerald-500/10"
       />
       <StatCard
-        title="Pending Follow-up"
+        title="Follow-up"
         value={pendingFollowup}
-        icon={<Clock className="h-6 w-6 text-chart-2" />}
+        icon={<Clock className="h-5 w-5 lg:h-6 lg:w-6 text-chart-2" />}
         iconBg="bg-chart-2/10"
       />
     </div>

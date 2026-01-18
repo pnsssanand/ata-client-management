@@ -1,4 +1,4 @@
-import { Bell, Search, Moon, Sun } from 'lucide-react';
+import { Bell, Search, Moon, Sun, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -7,9 +7,10 @@ import { useState, useEffect } from 'react';
 
 interface HeaderProps {
   title: string;
+  onMenuClick?: () => void;
 }
 
-export function Header({ title }: HeaderProps) {
+export function Header({ title, onMenuClick }: HeaderProps) {
   const { currentUser, searchQuery, setSearchQuery } = useClientStore();
   const [isDark, setIsDark] = useState(false);
 
@@ -23,20 +24,32 @@ export function Header({ title }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-lg border-b border-border">
-      <div className="flex items-center justify-between px-6 py-4">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">{title}</h1>
-          <p className="text-sm text-muted-foreground">
-            {new Date().toLocaleDateString('en-IN', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
-            })}
-          </p>
+      <div className="flex items-center justify-between px-4 lg:px-6 py-3 lg:py-4">
+        <div className="flex items-center gap-3">
+          {/* Mobile Menu Button */}
+          <Button 
+            variant="ghost" 
+            size="icon"
+            className="lg:hidden"
+            onClick={onMenuClick}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+          
+          <div>
+            <h1 className="text-lg lg:text-2xl font-bold text-foreground">{title}</h1>
+            <p className="text-xs lg:text-sm text-muted-foreground hidden sm:block">
+              {new Date().toLocaleDateString('en-IN', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+              })}
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 lg:gap-4">
           {/* Search */}
           <div className="relative hidden md:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -44,7 +57,7 @@ export function Header({ title }: HeaderProps) {
               placeholder="Search clients..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 w-64 bg-card"
+              className="pl-10 w-48 lg:w-64 bg-card"
             />
           </div>
 
@@ -53,20 +66,20 @@ export function Header({ title }: HeaderProps) {
             variant="ghost" 
             size="icon"
             onClick={() => setIsDark(!isDark)}
-            className="text-muted-foreground"
+            className="text-muted-foreground h-9 w-9"
           >
             {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
 
           {/* Notifications */}
-          <Button variant="ghost" size="icon" className="relative text-muted-foreground">
+          <Button variant="ghost" size="icon" className="relative text-muted-foreground h-9 w-9">
             <Bell className="h-5 w-5" />
           </Button>
 
           {/* User */}
-          <div className="flex items-center gap-3 pl-4 border-l border-border">
-            <Avatar className="h-9 w-9 border-2 border-primary/20">
-              <AvatarFallback className="bg-primary text-primary-foreground font-medium">
+          <div className="flex items-center gap-2 lg:gap-3 pl-2 lg:pl-4 border-l border-border">
+            <Avatar className="h-8 w-8 lg:h-9 lg:w-9 border-2 border-primary/20">
+              <AvatarFallback className="bg-primary text-primary-foreground font-medium text-sm">
                 {currentUser?.name?.charAt(0) || 'A'}
               </AvatarFallback>
             </Avatar>

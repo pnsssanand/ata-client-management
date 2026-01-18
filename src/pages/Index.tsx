@@ -24,6 +24,7 @@ const pageTitles: Record<string, string> = {
 const Index = () => {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Get store values individually to avoid infinite loop
   const clients = useClientStore((state) => state.clients);
@@ -55,22 +56,29 @@ const Index = () => {
         onNavigate={setCurrentPage} 
         collapsed={sidebarCollapsed}
         onCollapsedChange={setSidebarCollapsed}
+        mobileOpen={mobileMenuOpen}
+        onMobileOpenChange={setMobileMenuOpen}
       />
 
       {/* Main Content */}
       <main className={cn(
         "transition-all duration-300 flex-1 flex flex-col",
-        sidebarCollapsed ? "ml-20" : "ml-64"
+        // No margin on mobile, margin on desktop
+        "ml-0 lg:ml-64",
+        sidebarCollapsed && "lg:ml-20"
       )}>
-        <Header title={pageTitles[currentPage]} />
+        <Header 
+          title={pageTitles[currentPage]} 
+          onMenuClick={() => setMobileMenuOpen(true)}
+        />
 
-        <div className="p-6 space-y-6">
+        <div className="p-4 lg:p-6 space-y-4 lg:space-y-6 flex-1">
           {/* Dashboard Page */}
           {currentPage === 'dashboard' && (
             <>
               <DashboardStats />
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                <div className="xl:col-span-2">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
+                <div className="lg:col-span-2">
                   <RecentClients />
                 </div>
                 <div>
