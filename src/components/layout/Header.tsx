@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useClientStore } from '@/stores/clientStore';
+import { useAuthStore } from '@/stores/authStore';
 import { useState, useEffect } from 'react';
 
 interface HeaderProps {
@@ -11,7 +12,8 @@ interface HeaderProps {
 }
 
 export function Header({ title, onMenuClick }: HeaderProps) {
-  const { currentUser, searchQuery, setSearchQuery } = useClientStore();
+  const { searchQuery, setSearchQuery } = useClientStore();
+  const { user } = useAuthStore();
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
@@ -80,12 +82,12 @@ export function Header({ title, onMenuClick }: HeaderProps) {
           <div className="flex items-center gap-2 lg:gap-3 pl-2 lg:pl-4 border-l border-border">
             <Avatar className="h-8 w-8 lg:h-9 lg:w-9 border-2 border-primary/20">
               <AvatarFallback className="bg-primary text-primary-foreground font-medium text-sm">
-                {currentUser?.name?.charAt(0) || 'A'}
+                {user?.name?.charAt(0) || 'A'}
               </AvatarFallback>
             </Avatar>
             <div className="hidden lg:block">
-              <p className="text-sm font-medium text-foreground">{currentUser?.name}</p>
-              <p className="text-xs text-muted-foreground capitalize">{currentUser?.role}</p>
+              <p className="text-sm font-medium text-foreground">{user?.name || 'User'}</p>
+              <p className="text-xs text-muted-foreground capitalize">{user?.role || 'admin'}</p>
             </div>
           </div>
         </div>

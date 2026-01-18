@@ -10,6 +10,9 @@ import {
   X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAuthStore } from '@/stores/authStore';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 interface SidebarProps {
   currentPage: string;
@@ -28,9 +31,18 @@ const navItems = [
 ];
 
 export function Sidebar({ currentPage, onNavigate, collapsed, onCollapsedChange, mobileOpen, onMobileOpenChange }: SidebarProps) {
+  const { logout } = useAuthStore();
+  const navigate = useNavigate();
+
   const handleNavigate = (page: string) => {
     onNavigate(page);
     onMobileOpenChange(false); // Close mobile sidebar on navigation
+  };
+
+  const handleLogout = () => {
+    logout();
+    toast.success('Logged out successfully');
+    navigate('/login');
   };
 
   return (
@@ -98,6 +110,7 @@ export function Sidebar({ currentPage, onNavigate, collapsed, onCollapsedChange,
               "w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10",
               collapsed && "justify-center px-2"
             )}
+            onClick={handleLogout}
           >
             <LogOut className="h-5 w-5 shrink-0" />
             {!collapsed && <span>Logout</span>}
@@ -150,6 +163,7 @@ export function Sidebar({ currentPage, onNavigate, collapsed, onCollapsedChange,
           <Button 
             variant="ghost" 
             className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={handleLogout}
           >
             <LogOut className="h-5 w-5 shrink-0" />
             <span>Logout</span>
