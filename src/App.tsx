@@ -1,18 +1,27 @@
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuthStore } from "@/stores/authStore";
+import { useClientStore } from "@/stores/clientStore";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-// Protected Route component
+// Protected Route component with Firebase initialization
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated } = useAuthStore();
+  const { initializeFirebase, isInitialized } = useClientStore();
+  
+  useEffect(() => {
+    if (isAuthenticated && !isInitialized) {
+      initializeFirebase();
+    }
+  }, [isAuthenticated, isInitialized, initializeFirebase]);
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

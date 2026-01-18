@@ -11,7 +11,7 @@ import { DropdownSettings } from '@/components/settings/DropdownSettings';
 import { useClientStore } from '@/stores/clientStore';
 import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { Plus, Users } from 'lucide-react';
+import { Plus, Users, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const pageTitles: Record<string, string> = {
@@ -31,6 +31,7 @@ const Index = () => {
   const searchQuery = useClientStore((state) => state.searchQuery);
   const filterStatus = useClientStore((state) => state.filterStatus);
   const filterPriority = useClientStore((state) => state.filterPriority);
+  const isLoading = useClientStore((state) => state.isLoading);
 
   // Compute filtered clients with useMemo
   const filteredClients = useMemo(() => {
@@ -47,6 +48,18 @@ const Index = () => {
       return matchesSearch && matchesStatus && matchesPriority;
     });
   }, [clients, searchQuery, filterStatus, filterPriority]);
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Loading your data...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">

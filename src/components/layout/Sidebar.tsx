@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/authStore';
+import { useClientStore } from '@/stores/clientStore';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -32,6 +33,7 @@ const navItems = [
 
 export function Sidebar({ currentPage, onNavigate, collapsed, onCollapsedChange, mobileOpen, onMobileOpenChange }: SidebarProps) {
   const { logout } = useAuthStore();
+  const { cleanup } = useClientStore();
   const navigate = useNavigate();
 
   const handleNavigate = (page: string) => {
@@ -40,6 +42,7 @@ export function Sidebar({ currentPage, onNavigate, collapsed, onCollapsedChange,
   };
 
   const handleLogout = () => {
+    cleanup(); // Cleanup Firebase subscriptions
     logout();
     toast.success('Logged out successfully');
     navigate('/login');
