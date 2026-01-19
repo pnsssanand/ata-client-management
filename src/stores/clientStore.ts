@@ -33,6 +33,7 @@ interface ClientStore {
   addClient: (client: Omit<Client, 'id' | 'createdAt' | 'notes' | 'dropdownValues'>) => Promise<void>;
   updateClient: (id: string, updates: Partial<Client>) => Promise<void>;
   deleteClient: (id: string) => Promise<void>;
+  deleteMultipleClients: (ids: string[]) => Promise<void>;
   addNote: (clientId: string, content: string) => Promise<void>;
   updateDropdownValue: (clientId: string, fieldName: string, value: string) => Promise<void>;
   addDropdownField: (field: Omit<DropdownField, 'id' | 'createdAt'>) => Promise<void>;
@@ -180,7 +181,31 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       console.error('Error deleting client:', error);
       // Rollback
       if (client) {
-        set((state) => ({ clients: [...state.clients, client] }));
+        set((state) => ({
+          clients: [...state.clients, client]
+        }));
+      }
+      throw error;
+    }
+  },
+  
+  deleteMultipleClients: async (ids) => {
+    const { clients } = get();
+    const clientsToDelete = clients.filter(c => ids.includes(c.id));
+    
+    // Optimistically update
+    set((state) => ({
+      clients: state.clients.filter((c) => !ids.includes(c.id))
+    }));
+    
+    // Delete from Firebase
+    try {
+      await Promise.all(ids.map(id => deleteClientFromFirestore(id)));
+    } catch (error) {
+      console.error('Error deleting clients:', error);
+      // Rollback
+      if (clientsToDelete.length > 0) {
+        set((state) => ({ clients: [...state.clients, ...clientsToDelete] }));
       }
       throw error;
     }

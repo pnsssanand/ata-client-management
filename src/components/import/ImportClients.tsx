@@ -6,11 +6,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useClientStore } from '@/stores/clientStore';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+
+const MAX_IMPORT_LIMIT = 500;
 
 export function ImportClients() {
   const [pasteData, setPasteData] = useState('');
   const [importing, setImporting] = useState(false);
-  const { addClient } = useClientStore();
+  const { addClient, clients } = useClientStore();
+
+  // Helper to normalize phone number for comparison
+  const normalizePhone = (phone: string) => phone.replace(/[^0-9]/g, '');
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -28,12 +34,27 @@ export function ImportClients() {
       return;
     }
 
+    // Parse pasted data (expecting: Name (optional), Phone - one per line)
+    const lines = pasteData.trim().split('\n').filter(l => l.trim());
+    
+    // Check for 500 limit
+    if (lines.length > MAX_IMPORT_LIMIT) {
+      toast.error(`Maximum ${MAX_IMPORT_LIMIT} entries allowed at a time`, {
+        description: `You have ${lines.length} entries. Please reduce the number of entries.`
+      });
+      return;
+    }
+
     setImporting(true);
 
-    // Parse pasted data (expecting: Name (optional), Phone - one per line)
-    const lines = pasteData.trim().split('\n');
     let imported = 0;
     let skipped = 0;
+    let duplicates = 0;
+
+    // Get existing phone numbers from clients
+    const existingPhones = new Set(clients.map(c => normalizePhone(c.phone)));
+    // Track phone numbers seen in current paste to avoid duplicates within the pasted data
+    const seenPhones = new Set<string>();
 
     lines.forEach((line) => {
       const parts = line.split(/[,\t]/).map(p => p.trim());
@@ -51,17 +72,25 @@ export function ImportClients() {
         name = parts[0] || parts[1].replace(/[^0-9+]/g, '');
         phone = parts[1].replace(/[^0-9+]/g, '');
       }
+
+      const normalizedPhone = normalizePhone(phone);
       
       // Validate phone number (basic check - at least 10 digits)
       if (phone.length >= 10) {
-        addClient({
-          name: name || phone,
-          phone: parts.length >= 2 ? parts[1] : parts[0],
-          status: 'New Lead',
-          priority: 'Medium',
-          followUpRequired: true,
-        });
-        imported++;
+        // Check for duplicates (existing clients or already seen in this paste)
+        if (existingPhones.has(normalizedPhone) || seenPhones.has(normalizedPhone)) {
+          duplicates++;
+        } else {
+          seenPhones.add(normalizedPhone);
+          addClient({
+            name: name || phone,
+            phone: parts.length >= 2 ? parts[1] : parts[0],
+            status: 'New Lead',
+            priority: 'Medium',
+            followUpRequired: true,
+          });
+          imported++;
+        }
       } else {
         skipped++;
       }
@@ -72,12 +101,19 @@ export function ImportClients() {
       setPasteData('');
       
       if (imported > 0) {
+        const skipMessages = [];
+        if (skipped > 0) skipMessages.push(`${skipped} invalid`);
+        if (duplicates > 0) skipMessages.push(`${duplicates} duplicate`);
+        
         toast.success(`Successfully imported ${imported} clients!`, {
-          description: skipped > 0 ? `${skipped} entries were skipped due to invalid phone numbers.` : undefined
+          description: skipMessages.length > 0 ? `Skipped: ${skipMessages.join(', ')} entries.` : undefined
         });
       } else {
+        const reason = duplicates > 0 
+          ? 'All entries were duplicates or had invalid phone numbers'
+          : 'Please ensure phone numbers have at least 10 digits';
         toast.error('No valid entries found', {
-          description: 'Please ensure phone numbers have at least 10 digits'
+          description: reason
         });
       }
     }, 1000);
@@ -146,8 +182,13 @@ export function ImportClients() {
           />
 
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
+            <p className={cn("text-sm", 
+              pasteData.trim().split('\n').filter(l => l.trim()).length > MAX_IMPORT_LIMIT 
+                ? "text-destructive font-medium" 
+                : "text-muted-foreground"
+            )}>
               {pasteData.trim().split('\n').filter(l => l.trim()).length} entries detected
+              {pasteData.trim().split('\n').filter(l => l.trim()).length > MAX_IMPORT_LIMIT && ` (max ${MAX_IMPORT_LIMIT})`}
             </p>
             <div className="flex gap-2">
               {pasteData && (
@@ -181,6 +222,8 @@ export function ImportClients() {
                   <li>• One client per line</li>
                   <li>• Only phone number is required</li>
                   <li>• Use comma or tab to separate name and phone</li>
+                  <li>• Maximum {MAX_IMPORT_LIMIT} entries per import</li>
+                  <li>• Duplicate phone numbers will be skipped</li>
                 </ul>
               </div>
             </div>

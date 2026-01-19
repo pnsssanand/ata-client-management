@@ -11,7 +11,20 @@ import { DropdownSettings } from '@/components/settings/DropdownSettings';
 import { useClientStore } from '@/stores/clientStore';
 import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { Plus, Users, Loader2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Plus, Users, Loader2, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { cn } from '@/lib/utils';
 
 const pageTitles: Record<string, string> = {
@@ -25,9 +38,12 @@ const Index = () => {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [selectedClients, setSelectedClients] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Get store values individually to avoid infinite loop
   const clients = useClientStore((state) => state.clients);
+  const deleteMultipleClients = useClientStore((state) => state.deleteMultipleClients);
   const searchQuery = useClientStore((state) => state.searchQuery);
   const filterStatus = useClientStore((state) => state.filterStatus);
   const filterPriority = useClientStore((state) => state.filterPriority);
@@ -104,24 +120,98 @@ const Index = () => {
           {/* Clients Page */}
           {currentPage === 'clients' && (
             <>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-muted-foreground" />
-                  <span className="text-muted-foreground">
-                    {filteredClients.length} clients found
-                  </span>
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="select-all"
+                      checked={filteredClients.length > 0 && selectedClients.size === filteredClients.length}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedClients(new Set(filteredClients.map(c => c.id)));
+                        } else {
+                          setSelectedClients(new Set());
+                        }
+                      }}
+                    />
+                    <label htmlFor="select-all" className="text-sm text-muted-foreground cursor-pointer">
+                      Select All
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-muted-foreground">
+                      {selectedClients.size > 0 ? `${selectedClients.size} selected` : `${filteredClients.length} clients found`}
+                    </span>
+                  </div>
                 </div>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Client
-                </Button>
+                <div className="flex items-center gap-2">
+                  {selectedClients.size > 0 && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" disabled={isDeleting}>
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete Selected ({selectedClients.size})
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete {selectedClients.size} clients?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the selected clients and all their data.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={async () => {
+                              setIsDeleting(true);
+                              try {
+                                await deleteMultipleClients(Array.from(selectedClients));
+                                toast.success(`Successfully deleted ${selectedClients.size} clients`);
+                                setSelectedClients(new Set());
+                              } catch (error) {
+                                toast.error('Failed to delete some clients');
+                              } finally {
+                                setIsDeleting(false);
+                              }
+                            }}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            {isDeleting ? 'Deleting...' : 'Delete'}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Client
+                  </Button>
+                </div>
               </div>
 
               <ClientFilters />
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {filteredClients.map((client) => (
-                  <ClientCard key={client.id} client={client} />
+                  <div key={client.id} className="relative">
+                    <div className="absolute top-4 left-4 z-10">
+                      <Checkbox
+                        checked={selectedClients.has(client.id)}
+                        onCheckedChange={(checked) => {
+                          const newSelected = new Set(selectedClients);
+                          if (checked) {
+                            newSelected.add(client.id);
+                          } else {
+                            newSelected.delete(client.id);
+                          }
+                          setSelectedClients(newSelected);
+                        }}
+                      />
+                    </div>
+                    <ClientCard client={client} />
+                  </div>
                 ))}
               </div>
 
