@@ -13,10 +13,7 @@ const MAX_IMPORT_LIMIT = 500;
 export function ImportClients() {
   const [pasteData, setPasteData] = useState('');
   const [importing, setImporting] = useState(false);
-  const { addClient, clients } = useClientStore();
-
-  // Helper to normalize phone number for comparison
-  const normalizePhone = (phone: string) => phone.replace(/[^0-9]/g, '');
+  const { addClient } = useClientStore();
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -49,12 +46,6 @@ export function ImportClients() {
 
     let imported = 0;
     let skipped = 0;
-    let duplicates = 0;
-
-    // Get existing phone numbers from clients
-    const existingPhones = new Set(clients.map(c => normalizePhone(c.phone)));
-    // Track phone numbers seen in current paste to avoid duplicates within the pasted data
-    const seenPhones = new Set<string>();
 
     lines.forEach((line) => {
       const parts = line.split(/[,\t]/).map(p => p.trim());
@@ -72,25 +63,17 @@ export function ImportClients() {
         name = parts[0] || parts[1].replace(/[^0-9+]/g, '');
         phone = parts[1].replace(/[^0-9+]/g, '');
       }
-
-      const normalizedPhone = normalizePhone(phone);
       
       // Validate phone number (basic check - at least 10 digits)
       if (phone.length >= 10) {
-        // Check for duplicates (existing clients or already seen in this paste)
-        if (existingPhones.has(normalizedPhone) || seenPhones.has(normalizedPhone)) {
-          duplicates++;
-        } else {
-          seenPhones.add(normalizedPhone);
-          addClient({
-            name: name || phone,
-            phone: parts.length >= 2 ? parts[1] : parts[0],
-            status: 'New Lead',
-            priority: 'Medium',
-            followUpRequired: true,
-          });
-          imported++;
-        }
+        addClient({
+          name: name || phone,
+          phone: parts.length >= 2 ? parts[1] : parts[0],
+          status: 'New Lead',
+          priority: 'Medium',
+          followUpRequired: true,
+        });
+        imported++;
       } else {
         skipped++;
       }
@@ -101,19 +84,12 @@ export function ImportClients() {
       setPasteData('');
       
       if (imported > 0) {
-        const skipMessages = [];
-        if (skipped > 0) skipMessages.push(`${skipped} invalid`);
-        if (duplicates > 0) skipMessages.push(`${duplicates} duplicate`);
-        
         toast.success(`Successfully imported ${imported} clients!`, {
-          description: skipMessages.length > 0 ? `Skipped: ${skipMessages.join(', ')} entries.` : undefined
+          description: skipped > 0 ? `${skipped} entries were skipped due to invalid phone numbers.` : undefined
         });
       } else {
-        const reason = duplicates > 0 
-          ? 'All entries were duplicates or had invalid phone numbers'
-          : 'Please ensure phone numbers have at least 10 digits';
         toast.error('No valid entries found', {
-          description: reason
+          description: 'Please ensure phone numbers have at least 10 digits'
         });
       }
     }, 1000);
@@ -223,7 +199,6 @@ export function ImportClients() {
                   <li>• Only phone number is required</li>
                   <li>• Use comma or tab to separate name and phone</li>
                   <li>• Maximum {MAX_IMPORT_LIMIT} entries per import</li>
-                  <li>• Duplicate phone numbers will be skipped</li>
                 </ul>
               </div>
             </div>
