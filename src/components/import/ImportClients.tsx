@@ -25,7 +25,7 @@ export function ImportClients() {
     });
   };
 
-  const handlePasteImport = () => {
+  const handlePasteImport = async () => {
     if (!pasteData.trim()) {
       toast.error('Please paste some data first');
       return;
@@ -47,7 +47,9 @@ export function ImportClients() {
     let imported = 0;
     let skipped = 0;
 
-    lines.forEach((line) => {
+    // Process clients sequentially to avoid ID collisions
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
       const parts = line.split(/[,\t]/).map(p => p.trim());
       
       // Check if it's just a phone number or name + phone
@@ -66,33 +68,36 @@ export function ImportClients() {
       
       // Validate phone number (basic check - at least 10 digits)
       if (phone.length >= 10) {
-        addClient({
-          name: name || phone,
-          phone: parts.length >= 2 ? parts[1] : parts[0],
-          status: 'New Lead',
-          priority: 'Medium',
-          followUpRequired: true,
-        });
-        imported++;
+        try {
+          await addClient({
+            name: name || phone,
+            phone: parts.length >= 2 ? parts[1] : parts[0],
+            status: 'New Lead',
+            priority: 'Medium',
+            followUpRequired: true,
+          });
+          imported++;
+        } catch (error) {
+          console.error('Error adding client:', error);
+          skipped++;
+        }
       } else {
         skipped++;
       }
-    });
+    }
 
-    setTimeout(() => {
-      setImporting(false);
-      setPasteData('');
-      
-      if (imported > 0) {
-        toast.success(`Successfully imported ${imported} clients!`, {
-          description: skipped > 0 ? `${skipped} entries were skipped due to invalid phone numbers.` : undefined
-        });
-      } else {
-        toast.error('No valid entries found', {
-          description: 'Please ensure phone numbers have at least 10 digits'
-        });
-      }
-    }, 1000);
+    setImporting(false);
+    setPasteData('');
+    
+    if (imported > 0) {
+      toast.success(`Successfully imported ${imported} clients!`, {
+        description: skipped > 0 ? `${skipped} entries were skipped due to invalid phone numbers.` : undefined
+      });
+    } else {
+      toast.error('No valid entries found', {
+        description: 'Please ensure phone numbers have at least 10 digits'
+      });
+    }
   };
 
   return (

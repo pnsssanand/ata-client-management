@@ -1,4 +1,4 @@
-import { Bell, Search, Moon, Sun, Menu } from 'lucide-react';
+import { Bell, Search, Moon, Sun, Menu, Cloud, CloudOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -12,7 +12,7 @@ interface HeaderProps {
 }
 
 export function Header({ title, onMenuClick }: HeaderProps) {
-  const { searchQuery, setSearchQuery } = useClientStore();
+  const { searchQuery, setSearchQuery, isSynced, isLoading, lastSyncTime } = useClientStore();
   const { user } = useAuthStore();
   const [isDark, setIsDark] = useState(false);
 
@@ -72,6 +72,20 @@ export function Header({ title, onMenuClick }: HeaderProps) {
           >
             {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </Button>
+
+          {/* Sync Status Indicator */}
+          <div className="flex items-center gap-1" title={lastSyncTime ? `Last synced: ${lastSyncTime.toLocaleTimeString()}` : 'Not synced'}>
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 text-muted-foreground animate-spin" />
+            ) : isSynced ? (
+              <Cloud className="h-4 w-4 text-green-500" />
+            ) : (
+              <CloudOff className="h-4 w-4 text-destructive" />
+            )}
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              {isLoading ? 'Syncing...' : isSynced ? 'Synced' : 'Offline'}
+            </span>
+          </div>
 
           {/* Notifications */}
           <Button variant="ghost" size="icon" className="relative text-muted-foreground h-9 w-9">

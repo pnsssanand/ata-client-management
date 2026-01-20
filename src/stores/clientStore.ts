@@ -25,6 +25,8 @@ interface ClientStore {
   currentUser: User | null;
   isLoading: boolean;
   isInitialized: boolean;
+  isSynced: boolean;
+  lastSyncTime: Date | null;
   unsubscribeClients: (() => void) | null;
   unsubscribeDropdowns: (() => void) | null;
   setSearchQuery: (query: string) => void;
@@ -57,6 +59,8 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   currentUser: null,
   isLoading: true,
   isInitialized: false,
+  isSynced: false,
+  lastSyncTime: null,
   unsubscribeClients: null,
   unsubscribeDropdowns: null,
   
@@ -79,11 +83,11 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     // Subscribe to clients
     const clientsUnsub = subscribeToClients(
       (clients) => {
-        set({ clients, isLoading: false });
+        set({ clients, isLoading: false, isSynced: true, lastSyncTime: new Date() });
       },
       (error) => {
         console.error('Clients subscription error:', error);
-        set({ isLoading: false });
+        set({ isLoading: false, isSynced: false });
       }
     );
     
@@ -118,9 +122,11 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   },
   
   addClient: async (client) => {
+    // Generate a unique ID using timestamp + random string to avoid collisions
+    const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const newClient: Client = {
       ...client,
-      id: Date.now().toString(),
+      id: uniqueId,
       createdAt: new Date(),
       notes: [],
       dropdownValues: {}
