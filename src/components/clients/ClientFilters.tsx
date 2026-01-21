@@ -13,17 +13,21 @@ export function ClientFilters() {
     setFilterStatus, 
     filterPriority, 
     setFilterPriority,
+    filterCallOutcome,
+    setFilterCallOutcome,
     dropdowns 
   } = useClientStore();
 
   const statusDropdown = dropdowns.find(d => d.name === 'Lead Status');
   const priorityDropdown = dropdowns.find(d => d.name === 'Priority');
+  const callOutcomeDropdown = dropdowns.find(d => d.name === 'Call Outcome');
 
-  const hasFilters = filterStatus !== 'all' || filterPriority !== 'all';
+  const hasFilters = filterStatus !== 'all' || filterPriority !== 'all' || filterCallOutcome !== 'all';
 
   const clearFilters = () => {
     setFilterStatus('all');
     setFilterPriority('all');
+    setFilterCallOutcome('all');
   };
 
   return (
@@ -70,6 +74,18 @@ export function ClientFilters() {
           </SelectContent>
         </Select>
 
+        <Select value={filterCallOutcome} onValueChange={setFilterCallOutcome}>
+          <SelectTrigger className="w-[160px] bg-background">
+            <SelectValue placeholder="Call Outcome" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Outcomes</SelectItem>
+            {callOutcomeDropdown?.options.map((option) => (
+              <SelectItem key={option} value={option}>{option}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1.5 text-muted-foreground">
             <X className="h-3 w-3" />
@@ -92,6 +108,12 @@ export function ClientFilters() {
             <Badge variant="secondary" className="gap-1">
               Priority: {filterPriority}
               <X className="h-3 w-3 cursor-pointer" onClick={() => setFilterPriority('all')} />
+            </Badge>
+          )}
+          {filterCallOutcome !== 'all' && (
+            <Badge variant="secondary" className="gap-1">
+              Call Outcome: {filterCallOutcome}
+              <X className="h-3 w-3 cursor-pointer" onClick={() => setFilterCallOutcome('all')} />
             </Badge>
           )}
         </div>

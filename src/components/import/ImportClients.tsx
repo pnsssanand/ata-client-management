@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Upload, FileSpreadsheet, Clipboard, Check, AlertCircle, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,22 +7,144 @@ import { Badge } from '@/components/ui/badge';
 import { useClientStore } from '@/stores/clientStore';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import * as XLSX from 'xlsx';
 
 const MAX_IMPORT_LIMIT = 500;
 
 export function ImportClients() {
   const [pasteData, setPasteData] = useState('');
   const [importing, setImporting] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { addClient } = useClientStore();
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const processImportData = async (data: { name: string; phone: string }[]) => {
+    if (data.length === 0) {
+      toast.error('No valid entries found');
+      return;
+    }
+
+    if (data.length > MAX_IMPORT_LIMIT) {
+      toast.error(`Maximum ${MAX_IMPORT_LIMIT} entries allowed at a time`, {
+        description: `You have ${data.length} entries. Please reduce the number of entries.`
+      });
+      return;
+    }
+
+    setImporting(true);
+    let imported = 0;
+    let skipped = 0;
+
+    for (const entry of data) {
+      const phone = entry.phone.replace(/[^0-9+]/g, '');
+      
+      if (phone.length >= 10) {
+        try {
+          await addClient({
+            name: entry.name || phone,
+            phone: entry.phone,
+            status: 'New Lead',
+            priority: 'Medium',
+            followUpRequired: true,
+          });
+          imported++;
+        } catch (error) {
+          console.error('Error adding client:', error);
+          skipped++;
+        }
+      } else {
+        skipped++;
+      }
+    }
+
+    setImporting(false);
+    setUploadedFileName(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+
+    if (imported > 0) {
+      toast.success(`Successfully imported ${imported} clients!`, {
+        description: skipped > 0 ? `${skipped} entries were skipped due to invalid phone numbers.` : undefined
+      });
+    } else {
+      toast.error('No valid entries found', {
+        description: 'Please ensure phone numbers have at least 10 digits'
+      });
+    }
+  };
+
+  const parseExcelData = (workbook: XLSX.WorkBook): { name: string; phone: string }[] => {
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { header: 1 });
+    
+    if (jsonData.length === 0) return [];
+
+    const result: { name: string; phone: string }[] = [];
+    
+    // Check if first row is header
+    const firstRow = jsonData[0] as unknown[];
+    const hasHeader = firstRow && firstRow.some(cell => 
+      typeof cell === 'string' && 
+      (cell.toLowerCase().includes('name') || cell.toLowerCase().includes('phone'))
+    );
+    
+    const startIndex = hasHeader ? 1 : 0;
+    
+    for (let i = startIndex; i < jsonData.length; i++) {
+      const row = jsonData[i] as unknown[];
+      if (!row || row.length === 0) continue;
+      
+      let name = '';
+      let phone = '';
+      
+      if (row.length === 1) {
+        // Only one column - assume it's phone
+        phone = String(row[0] || '').trim();
+        name = phone;
+      } else if (row.length >= 2) {
+        // Two or more columns - first is name, second is phone
+        name = String(row[0] || '').trim();
+        phone = String(row[1] || '').trim();
+        if (!name) name = phone;
+      }
+      
+      if (phone) {
+        result.push({ name, phone });
+      }
+    }
+    
+    return result;
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // For demo, we'll just show a success message
-    toast.success('File upload feature coming soon!', {
-      description: 'Backend integration required for CSV/Excel parsing.'
-    });
+    setUploadedFileName(file.name);
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const data = parseExcelData(workbook);
+      
+      if (data.length === 0) {
+        toast.error('No data found in file', {
+          description: 'Please ensure the file has valid data with phone numbers.'
+        });
+        setUploadedFileName(null);
+        return;
+      }
+
+      await processImportData(data);
+    } catch (error) {
+      console.error('Error parsing file:', error);
+      toast.error('Error reading file', {
+        description: 'Please ensure the file is a valid Excel or CSV file.'
+      });
+      setUploadedFileName(null);
+    }
   };
 
   const handlePasteImport = async () => {
@@ -121,15 +243,41 @@ export function ImportClients() {
               onChange={handleFileUpload}
               className="hidden"
               id="file-upload"
+              ref={fileInputRef}
+              disabled={importing}
             />
-            <label htmlFor="file-upload" className="cursor-pointer">
-              <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-foreground font-medium mb-1">
-                Click to upload or drag and drop
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Supports .xlsx, .xls, and .csv files
-              </p>
+            <label htmlFor="file-upload" className={cn("cursor-pointer", importing && "pointer-events-none opacity-50")}>
+              {importing ? (
+                <>
+                  <div className="h-12 w-12 mx-auto text-primary mb-4 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                  <p className="text-foreground font-medium mb-1">
+                    Importing clients...
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Please wait while we process your file
+                  </p>
+                </>
+              ) : uploadedFileName ? (
+                <>
+                  <FileSpreadsheet className="h-12 w-12 mx-auto text-primary mb-4" />
+                  <p className="text-foreground font-medium mb-1">
+                    {uploadedFileName}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Click to upload a different file
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-foreground font-medium mb-1">
+                    Click to upload or drag and drop
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Supports .xlsx, .xls, and .csv files
+                  </p>
+                </>
+              )}
             </label>
           </div>
 

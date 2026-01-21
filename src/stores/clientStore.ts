@@ -22,6 +22,7 @@ interface ClientStore {
   searchQuery: string;
   filterStatus: string;
   filterPriority: string;
+  filterCallOutcome: string;
   currentUser: User | null;
   isLoading: boolean;
   isInitialized: boolean;
@@ -32,6 +33,7 @@ interface ClientStore {
   setSearchQuery: (query: string) => void;
   setFilterStatus: (status: string) => void;
   setFilterPriority: (priority: string) => void;
+  setFilterCallOutcome: (callOutcome: string) => void;
   addClient: (client: Omit<Client, 'id' | 'createdAt' | 'notes' | 'dropdownValues'>) => Promise<void>;
   updateClient: (id: string, updates: Partial<Client>) => Promise<void>;
   deleteClient: (id: string) => Promise<void>;
@@ -56,6 +58,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   searchQuery: '',
   filterStatus: 'all',
   filterPriority: 'all',
+  filterCallOutcome: 'all',
   currentUser: null,
   isLoading: true,
   isInitialized: false,
@@ -67,6 +70,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   setSearchQuery: (query) => set({ searchQuery: query }),
   setFilterStatus: (status) => set({ filterStatus: status }),
   setFilterPriority: (priority) => set({ filterPriority: priority }),
+  setFilterCallOutcome: (callOutcome) => set({ filterCallOutcome: callOutcome }),
   
   initializeFirebase: () => {
     const { isInitialized, unsubscribeClients, unsubscribeDropdowns } = get();
@@ -418,7 +422,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   setCurrentUser: (user) => set({ currentUser: user }),
   
   filteredClients: () => {
-    const { clients, searchQuery, filterStatus, filterPriority } = get();
+    const { clients, searchQuery, filterStatus, filterPriority, filterCallOutcome } = get();
     return clients.filter((client) => {
       const matchesSearch = !searchQuery || 
         client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -428,8 +432,9 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       
       const matchesStatus = filterStatus === 'all' || client.status === filterStatus;
       const matchesPriority = filterPriority === 'all' || client.priority === filterPriority;
+      const matchesCallOutcome = filterCallOutcome === 'all' || client.callOutcome === filterCallOutcome;
       
-      return matchesSearch && matchesStatus && matchesPriority;
+      return matchesSearch && matchesStatus && matchesPriority && matchesCallOutcome;
     });
   }
 }));
