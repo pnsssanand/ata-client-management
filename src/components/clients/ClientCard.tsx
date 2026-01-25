@@ -1,11 +1,12 @@
 import { useState, useCallback, memo, useEffect, useRef } from 'react';
-import { Phone, MessageCircle, Clock, Building, Mail, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { Phone, MessageCircle, Clock, Building, Mail, ChevronDown, ChevronUp, Plus, Trash2, Check } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Client, DropdownField } from '@/types/client';
 import { useClientStore } from '@/stores/clientStore';
 import { cn } from '@/lib/utils';
@@ -104,7 +105,12 @@ const priorityColors: Record<string, string> = {
 export function ClientCard({ client }: ClientCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [newNote, setNewNote] = useState('');
-  const { dropdowns, updateDropdownValue, addNote } = useClientStore();
+  const [statusOpen, setStatusOpen] = useState(false);
+  const { dropdowns, updateDropdownValue, addNote, updateClient } = useClientStore();
+
+  // Get lead status dropdown options
+  const leadStatusDropdown = dropdowns.find(d => d.name === 'Lead Status');
+  const statusOptions = leadStatusDropdown?.options || [];
 
   const handleCall = () => {
     window.location.href = `tel:${client.phone.replace(/\s/g, '')}`;
@@ -120,6 +126,13 @@ export function ClientCard({ client }: ClientCardProps) {
       addNote(client.id, newNote.trim());
       setNewNote('');
     }
+  };
+
+  const handleStatusChange = (newStatus: string) => {
+    updateClient(client.id, { status: newStatus });
+    updateDropdownValue(client.id, 'Lead Status', newStatus);
+    setStatusOpen(false);
+    toast.success(`Status updated to "${newStatus}"`, { duration: 1500 });
   };
 
   return (
@@ -166,10 +179,63 @@ export function ClientCard({ client }: ClientCardProps) {
               </div>
             </div>
 
-            {/* Status Badge */}
-            <Badge variant="outline" className={cn("shrink-0", statusColors[client.status] || statusColors['New Lead'])}>
-              {client.status}
-            </Badge>
+            {/* Status Badge - Clickable to update */}
+            {statusOptions.length > 0 ? (
+              <Popover open={statusOpen} onOpenChange={setStatusOpen}>
+                <PopoverTrigger asChild>
+                  <Badge 
+                    variant="outline" 
+                    className={cn(
+                      "shrink-0 cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all touch-manipulation",
+                      statusColors[client.status] || 'bg-muted/50 text-muted-foreground border-muted'
+                    )}
+                  >
+                    {client.status || 'Set Status'}
+                    <ChevronDown className="h-3 w-3 ml-1" />
+                  </Badge>
+                </PopoverTrigger>
+                <PopoverContent 
+                  className="w-48 p-1" 
+                  align="end"
+                  onCloseAutoFocus={(e) => e.preventDefault()}
+                >
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium text-muted-foreground px-2 py-1.5">Update Status</p>
+                    {statusOptions.map((status) => (
+                      <button
+                        key={status}
+                        onClick={() => handleStatusChange(status)}
+                        className={cn(
+                          "w-full flex items-center justify-between px-2 py-2.5 md:py-2 text-sm rounded-md transition-colors touch-manipulation",
+                          client.status === status 
+                            ? "bg-primary/10 text-primary" 
+                            : "hover:bg-muted"
+                        )}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className={cn(
+                            "w-2 h-2 rounded-full",
+                            status === 'New Lead' && "bg-chart-1",
+                            status === 'Hot Lead' && "bg-destructive",
+                            status === 'Warm Lead' && "bg-chart-2",
+                            status === 'Cold Lead' && "bg-muted-foreground",
+                            status === 'Converted' && "bg-emerald-500",
+                            status === 'Lost' && "bg-destructive/70",
+                            !['New Lead', 'Hot Lead', 'Warm Lead', 'Cold Lead', 'Converted', 'Lost'].includes(status) && "bg-primary"
+                          )} />
+                          {status}
+                        </span>
+                        {client.status === status && <Check className="h-4 w-4" />}
+                      </button>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <Badge variant="outline" className={cn("shrink-0", statusColors[client.status] || 'bg-muted/50 text-muted-foreground border-muted')}>
+                {client.status || 'No Status'}
+              </Badge>
+            )}
           </div>
 
           {/* Action Buttons */}
