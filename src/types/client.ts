@@ -28,6 +28,7 @@ export interface DropdownField {
   options: string[];
   createdBy: string;
   createdAt: Date;
+  updatedAt?: Date;
 }
 
 export interface User {

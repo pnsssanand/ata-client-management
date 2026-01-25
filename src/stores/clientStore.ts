@@ -10,6 +10,21 @@ import {
   initializeDefaultDropdowns
 } from '@/lib/firestore';
 
+// Debounce utility for optimizing frequent updates
+const debounceTimers: Map<string, NodeJS.Timeout> = new Map();
+
+const debouncedSave = (key: string, fn: () => Promise<void>, delay: number = 300) => {
+  const existingTimer = debounceTimers.get(key);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+  const timer = setTimeout(() => {
+    fn().catch(console.error);
+    debounceTimers.delete(key);
+  }, delay);
+  debounceTimers.set(key, timer);
+};
+
 const defaultDropdowns: DropdownField[] = [
   { id: '1', name: 'Lead Status', options: ['New Lead', 'Hot Lead', 'Warm Lead', 'Cold Lead', 'Converted', 'Lost'], createdBy: 'admin', createdAt: new Date() },
   { id: '2', name: 'Call Outcome', options: ['Not Reached', 'Interested', 'Not Interested', 'Call Back', 'Booked', 'Cancelled'], createdBy: 'admin', createdAt: new Date() },
@@ -266,19 +281,28 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       callOutcome: fieldName === 'Call Outcome' ? value : client.callOutcome
     };
     
+    // Immediately update local state for responsive UI
     set((state) => ({
       clients: state.clients.map((c) => c.id === clientId ? updatedClient : c)
     }));
     
-    try {
-      await saveClient(updatedClient);
-    } catch (error) {
-      console.error('Error updating dropdown value:', error);
-      set((state) => ({
-        clients: state.clients.map((c) => c.id === clientId ? client : c)
-      }));
-      throw error;
-    }
+    // Debounce Firebase save to prevent rapid consecutive writes
+    // This key ensures each client's dropdown changes are debounced separately
+    const debounceKey = `client-dropdown-${clientId}`;
+    debouncedSave(debounceKey, async () => {
+      try {
+        // Get the latest client state before saving
+        const currentClients = get().clients;
+        const latestClient = currentClients.find(c => c.id === clientId);
+        if (latestClient) {
+          await saveClient(latestClient);
+        }
+      } catch (error) {
+        console.error('Error updating dropdown value:', error);
+        // Note: We don't rollback here as the user may have made more changes
+        // The next sync from Firebase will reconcile the state
+      }
+    }, 500);
   },
   
   addDropdownField: async (field) => {
@@ -308,7 +332,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     const dropdown = dropdowns.find(d => d.id === id);
     if (!dropdown) return;
     
-    const updatedDropdown = { ...dropdown, ...updates };
+    const updatedDropdown = { ...dropdown, ...updates, updatedAt: new Date() };
     
     set((state) => ({
       dropdowns: state.dropdowns.map((d) => d.id === id ? updatedDropdown : d)
@@ -351,7 +375,8 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     
     const updatedDropdown = {
       ...dropdown,
-      options: [...dropdown.options, option]
+      options: [...dropdown.options, option],
+      updatedAt: new Date()
     };
     
     set((state) => ({
@@ -376,7 +401,8 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     
     const updatedDropdown = {
       ...dropdown,
-      options: dropdown.options.map((opt, i) => i === index ? newValue : opt)
+      options: dropdown.options.map((opt, i) => i === index ? newValue : opt),
+      updatedAt: new Date()
     };
     
     set((state) => ({
@@ -401,7 +427,8 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     
     const updatedDropdown = {
       ...dropdown,
-      options: dropdown.options.filter((_, i) => i !== index)
+      options: dropdown.options.filter((_, i) => i !== index),
+      updatedAt: new Date()
     };
     
     set((state) => ({

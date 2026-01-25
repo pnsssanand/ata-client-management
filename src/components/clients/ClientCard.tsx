@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback, memo } from 'react';
 import { Phone, MessageCircle, Clock, Building, Mail, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Client } from '@/types/client';
+import { Client, DropdownField } from '@/types/client';
 import { useClientStore } from '@/stores/clientStore';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -14,6 +14,44 @@ import { formatDistanceToNow } from 'date-fns';
 interface ClientCardProps {
   client: Client;
 }
+
+// Memoized dropdown component for better performance
+const ClientDropdown = memo(({ 
+  dropdown, 
+  clientId, 
+  currentValue,
+  onValueChange 
+}: { 
+  dropdown: DropdownField; 
+  clientId: string; 
+  currentValue: string;
+  onValueChange: (clientId: string, fieldName: string, value: string) => void;
+}) => {
+  const handleChange = useCallback((value: string) => {
+    onValueChange(clientId, dropdown.name, value);
+  }, [clientId, dropdown.name, onValueChange]);
+
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium text-muted-foreground">{dropdown.name}</label>
+      <Select
+        value={currentValue || ''}
+        onValueChange={handleChange}
+      >
+        <SelectTrigger className="bg-card">
+          <SelectValue placeholder={`Select ${dropdown.name}`} />
+        </SelectTrigger>
+        <SelectContent>
+          {dropdown.options.map((option) => (
+            <SelectItem key={option} value={option}>
+              {option}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+});
 
 const statusColors: Record<string, string> = {
   'New Lead': 'bg-chart-1/20 text-chart-1 border-chart-1/30',
@@ -145,24 +183,13 @@ export function ClientCard({ client }: ClientCardProps) {
             {/* Dropdowns */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {dropdowns.map((dropdown) => (
-                <div key={dropdown.id} className="space-y-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">{dropdown.name}</label>
-                  <Select
-                    value={client.dropdownValues[dropdown.name] || ''}
-                    onValueChange={(value) => updateDropdownValue(client.id, dropdown.name, value)}
-                  >
-                    <SelectTrigger className="bg-card">
-                      <SelectValue placeholder={`Select ${dropdown.name}`} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {dropdown.options.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {option}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <ClientDropdown
+                  key={dropdown.id}
+                  dropdown={dropdown}
+                  clientId={client.id}
+                  currentValue={client.dropdownValues[dropdown.name] || ''}
+                  onValueChange={updateDropdownValue}
+                />
               ))}
             </div>
 

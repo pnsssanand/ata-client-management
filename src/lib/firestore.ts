@@ -57,7 +57,8 @@ const firestoreToClient = (data: DocumentData): Client => {
 const dropdownToFirestore = (dropdown: DropdownField): DocumentData => {
   return {
     ...dropdown,
-    createdAt: dateToTimestamp(dropdown.createdAt)
+    createdAt: dateToTimestamp(dropdown.createdAt),
+    updatedAt: dateToTimestamp(dropdown.updatedAt || new Date())
   };
 };
 
@@ -65,7 +66,8 @@ const dropdownToFirestore = (dropdown: DropdownField): DocumentData => {
 const firestoreToDropdown = (data: DocumentData): DropdownField => {
   return {
     ...data,
-    createdAt: timestampToDate(data.createdAt)
+    createdAt: timestampToDate(data.createdAt),
+    updatedAt: data.updatedAt ? timestampToDate(data.updatedAt) : undefined
   } as DropdownField;
 };
 
