@@ -44,7 +44,8 @@ function StatCard({ title, value, change, icon, iconBg }: StatCardProps) {
 }
 
 export function DashboardStats() {
-  const { clients } = useClientStore();
+  // Subscribe to clients with individual selector for proper reactivity
+  const clients = useClientStore((state) => state.clients);
 
   const totalClients = clients.length;
   const hotLeads = clients.filter(c => c.status === 'Hot Lead').length;

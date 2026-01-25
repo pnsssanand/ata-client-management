@@ -14,7 +14,8 @@ const priorityColors: Record<string, string> = {
 };
 
 export function RecentClients() {
-  const { clients } = useClientStore();
+  // Subscribe to clients with individual selector for proper reactivity
+  const clients = useClientStore((state) => state.clients);
 
   const recentClients = [...clients]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())

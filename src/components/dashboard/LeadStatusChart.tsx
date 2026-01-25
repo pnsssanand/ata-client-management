@@ -13,7 +13,8 @@ const COLORS = {
 };
 
 export function LeadStatusChart() {
-  const { clients } = useClientStore();
+  // Subscribe to clients with individual selector for proper reactivity
+  const clients = useClientStore((state) => state.clients);
   const isMobile = useIsMobile();
 
   const statusCounts = clients.reduce((acc, client) => {

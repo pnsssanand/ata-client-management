@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, Edit2, Save, X, PlusCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,21 +19,43 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export function DropdownSettings() {
-  const { 
-    dropdowns, 
-    addDropdownField, 
-    updateDropdownField,
-    deleteDropdownField,
-    addDropdownOption,
-    updateDropdownOption,
-    deleteDropdownOption,
-    currentUser 
-  } = useClientStore();
+  // Subscribe to dropdowns from store for real-time updates across devices
+  const dropdowns = useClientStore((state) => state.dropdowns);
+  const addDropdownField = useClientStore((state) => state.addDropdownField);
+  const updateDropdownField = useClientStore((state) => state.updateDropdownField);
+  const deleteDropdownField = useClientStore((state) => state.deleteDropdownField);
+  const addDropdownOption = useClientStore((state) => state.addDropdownOption);
+  const updateDropdownOption = useClientStore((state) => state.updateDropdownOption);
+  const deleteDropdownOption = useClientStore((state) => state.deleteDropdownOption);
+  const currentUser = useClientStore((state) => state.currentUser);
+  
   const [newFieldName, setNewFieldName] = useState('');
   const [newFieldOptions, setNewFieldOptions] = useState('');
   const [editingField, setEditingField] = useState<{ id: string; name: string } | null>(null);
   const [editingOption, setEditingOption] = useState<{ fieldId: string; index: number; value: string } | null>(null);
   const [newOptionValue, setNewOptionValue] = useState<{ fieldId: string; value: string } | null>(null);
+
+  // Reset editing states when dropdowns update from other devices
+  useEffect(() => {
+    if (editingField) {
+      const dropdown = dropdowns.find(d => d.id === editingField.id);
+      if (!dropdown) {
+        setEditingField(null);
+      }
+    }
+    if (editingOption) {
+      const dropdown = dropdowns.find(d => d.id === editingOption.fieldId);
+      if (!dropdown || !dropdown.options[editingOption.index]) {
+        setEditingOption(null);
+      }
+    }
+    if (newOptionValue) {
+      const dropdown = dropdowns.find(d => d.id === newOptionValue.fieldId);
+      if (!dropdown) {
+        setNewOptionValue(null);
+      }
+    }
+  }, [dropdowns, editingField, editingOption, newOptionValue]);
 
   const handleAddField = () => {
     if (!newFieldName.trim() || !newFieldOptions.trim()) {
@@ -156,7 +178,26 @@ export function DropdownSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {dropdowns.map((dropdown) => (
+          {dropdowns.length === 0 ? (
+            <div className="text-center py-8 px-4">
+              <div className="mx-auto w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+                <Plus className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-medium text-foreground mb-2">No Dropdown Fields Yet</h3>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto mb-4">
+                Create your first dropdown field above. These fields will appear on all client cards and help you organize your leads.
+              </p>
+              <div className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-4 max-w-md mx-auto">
+                <p className="font-medium mb-2">Suggested dropdowns to create:</p>
+                <ul className="text-left space-y-1">
+                  <li>• <strong>Lead Status</strong> - New Lead, Hot Lead, Warm Lead, Cold Lead, Converted, Lost</li>
+                  <li>• <strong>Call Outcome</strong> - Not Reached, Interested, Not Interested, Call Back, Booked</li>
+                  <li>• <strong>Priority</strong> - High, Medium, Low</li>
+                </ul>
+              </div>
+            </div>
+          ) : (
+          dropdowns.map((dropdown) => (
             <div 
               key={dropdown.id}
               className="p-4 bg-muted/30 rounded-lg border border-border/50"
@@ -226,37 +267,38 @@ export function DropdownSettings() {
                       <Input
                         value={editingOption.value}
                         onChange={(e) => setEditingOption({ ...editingOption, value: e.target.value })}
-                        className="h-7 w-32 text-sm"
+                        className="h-9 md:h-7 w-36 md:w-32 text-sm"
+                        autoFocus
                       />
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleUpdateOption}>
-                        <Save className="h-3 w-3 text-emerald-600" />
+                      <Button size="icon" variant="ghost" className="h-9 w-9 md:h-7 md:w-7 touch-manipulation" onClick={handleUpdateOption}>
+                        <Save className="h-4 w-4 md:h-3 md:w-3 text-emerald-600" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingOption(null)}>
-                        <X className="h-3 w-3 text-muted-foreground" />
+                      <Button size="icon" variant="ghost" className="h-9 w-9 md:h-7 md:w-7 touch-manipulation" onClick={() => setEditingOption(null)}>
+                        <X className="h-4 w-4 md:h-3 md:w-3 text-muted-foreground" />
                       </Button>
                     </div>
                   ) : (
                     <Badge 
                       key={index}
                       variant="outline"
-                      className="cursor-default hover:bg-muted/50 group pr-1"
+                      className="cursor-default hover:bg-muted/50 group pr-1 py-1.5 md:py-0.5 touch-manipulation"
                     >
                       <span>{option}</span>
                       <Button 
                         size="icon" 
                         variant="ghost" 
-                        className="h-4 w-4 ml-1 opacity-0 group-hover:opacity-100"
+                        className="h-6 w-6 md:h-4 md:w-4 ml-1 opacity-100 md:opacity-0 group-hover:opacity-100 touch-manipulation"
                         onClick={() => setEditingOption({ fieldId: dropdown.id, index, value: option })}
                       >
-                        <Edit2 className="h-2.5 w-2.5" />
+                        <Edit2 className="h-3 w-3 md:h-2.5 md:w-2.5" />
                       </Button>
                       <Button 
                         size="icon" 
                         variant="ghost" 
-                        className="h-4 w-4 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive"
+                        className="h-6 w-6 md:h-4 md:w-4 opacity-100 md:opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive touch-manipulation"
                         onClick={() => handleDeleteOption(dropdown.id, index, option)}
                       >
-                        <X className="h-2.5 w-2.5" />
+                        <X className="h-3 w-3 md:h-2.5 md:w-2.5" />
                       </Button>
                     </Badge>
                   )
@@ -267,29 +309,31 @@ export function DropdownSettings() {
                       value={newOptionValue.value}
                       onChange={(e) => setNewOptionValue({ ...newOptionValue, value: e.target.value })}
                       placeholder="New option"
-                      className="h-7 w-32 text-sm"
+                      className="h-9 md:h-7 w-36 md:w-32 text-sm"
+                      autoFocus
                     />
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleAddOption}>
-                      <Save className="h-3 w-3 text-emerald-600" />
+                    <Button size="icon" variant="ghost" className="h-9 w-9 md:h-7 md:w-7 touch-manipulation" onClick={handleAddOption}>
+                      <Save className="h-4 w-4 md:h-3 md:w-3 text-emerald-600" />
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setNewOptionValue(null)}>
-                      <X className="h-3 w-3 text-muted-foreground" />
+                    <Button size="icon" variant="ghost" className="h-9 w-9 md:h-7 md:w-7 touch-manipulation" onClick={() => setNewOptionValue(null)}>
+                      <X className="h-4 w-4 md:h-3 md:w-3 text-muted-foreground" />
                     </Button>
                   </div>
                 ) : (
                   <Button 
                     variant="outline" 
                     size="sm" 
-                    className="h-6 text-xs gap-1"
+                    className="h-8 md:h-6 text-sm md:text-xs gap-1 touch-manipulation"
                     onClick={() => setNewOptionValue({ fieldId: dropdown.id, value: '' })}
                   >
-                    <PlusCircle className="h-3 w-3" />
+                    <PlusCircle className="h-4 w-4 md:h-3 md:w-3" />
                     Add Option
                   </Button>
                 )}
               </div>
             </div>
-          ))}
+          ))
+          )}
         </CardContent>
       </Card>
     </div>

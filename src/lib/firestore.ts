@@ -140,15 +140,3 @@ export const subscribeToDropdowns = (
     }
   );
 };
-
-// Initialize default dropdowns if none exist
-export const initializeDefaultDropdowns = async (defaultDropdowns: DropdownField[]): Promise<void> => {
-  const batch = writeBatch(db);
-  
-  defaultDropdowns.forEach((dropdown) => {
-    const dropdownRef = doc(db, DROPDOWNS_COLLECTION, dropdown.id);
-    batch.set(dropdownRef, dropdownToFirestore(dropdown), { merge: true });
-  });
-  
-  await batch.commit();
-};

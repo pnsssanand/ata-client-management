@@ -156,5 +156,53 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+}
+
+/* Mobile touch improvements */
+@layer utilities {
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+}
+
+/* Improve mobile dropdown/select behavior */
+@media (max-width: 768px) {
+  /* Prevent 300ms click delay on mobile */
+  button, 
+  a, 
+  [role="button"],
+  [role="option"],
+  [role="combobox"],
+  [data-radix-select-trigger],
+  [data-radix-collection-item] {
+    touch-action: manipulation;
+  }
+
+  /* Better touch targets for mobile */
+  [data-radix-select-item] {
+    min-height: 44px;
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  /* Ensure dropdown menu is visible above other content */
+  [data-radix-select-content],
+  [data-radix-popover-content],
+  [data-radix-popper-content-wrapper] {
+    z-index: 100 !important;
+  }
+
+  /* Prevent body scroll when dropdown is open */
+  [data-scroll-locked] {
+    overflow: hidden !important;
+  }
+  
+  /* Smoother scrolling in dropdown lists */
+  [data-radix-select-viewport] {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
   }
 }

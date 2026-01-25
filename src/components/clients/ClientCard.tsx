@@ -1,4 +1,4 @@
-import { useState, useCallback, memo } from 'react';
+import { useState, useCallback, memo, useEffect, useRef } from 'react';
 import { Phone, MessageCircle, Clock, Building, Mail, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,12 +10,13 @@ import { Client, DropdownField } from '@/types/client';
 import { useClientStore } from '@/stores/clientStore';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
 
 interface ClientCardProps {
   client: Client;
 }
 
-// Memoized dropdown component for better performance
+// Memoized dropdown component for better performance with improved mobile support
 const ClientDropdown = memo(({ 
   dropdown, 
   clientId, 
@@ -27,23 +28,55 @@ const ClientDropdown = memo(({
   currentValue: string;
   onValueChange: (clientId: string, fieldName: string, value: string) => void;
 }) => {
+  const [localValue, setLocalValue] = useState(currentValue);
+  const [isOpen, setIsOpen] = useState(false);
+  const prevValueRef = useRef(currentValue);
+  
+  // Sync local value with prop when it changes from external source (real-time updates)
+  useEffect(() => {
+    if (currentValue !== prevValueRef.current) {
+      setLocalValue(currentValue);
+      prevValueRef.current = currentValue;
+    }
+  }, [currentValue]);
+
   const handleChange = useCallback((value: string) => {
+    // Immediately update local state for responsive UI
+    setLocalValue(value);
+    prevValueRef.current = value;
+    // Propagate to store
     onValueChange(clientId, dropdown.name, value);
+    // Show feedback toast on mobile
+    if (window.innerWidth < 768) {
+      toast.success(`${dropdown.name} updated`, { duration: 1500 });
+    }
   }, [clientId, dropdown.name, onValueChange]);
 
   return (
     <div className="space-y-1.5">
       <label className="text-xs font-medium text-muted-foreground">{dropdown.name}</label>
       <Select
-        value={currentValue || ''}
+        value={localValue || ''}
         onValueChange={handleChange}
+        open={isOpen}
+        onOpenChange={setIsOpen}
       >
-        <SelectTrigger className="bg-card">
+        <SelectTrigger className="bg-card h-11 md:h-10">
           <SelectValue placeholder={`Select ${dropdown.name}`} />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent 
+          position="popper" 
+          side="bottom" 
+          align="start"
+          className="max-h-[50vh] overflow-y-auto"
+          onCloseAutoFocus={(e) => e.preventDefault()}
+        >
           {dropdown.options.map((option) => (
-            <SelectItem key={option} value={option}>
+            <SelectItem 
+              key={option} 
+              value={option}
+              className="py-3 md:py-2"
+            >
               {option}
             </SelectItem>
           ))}
@@ -181,17 +214,25 @@ export function ClientCard({ client }: ClientCardProps) {
             )}
 
             {/* Dropdowns */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {dropdowns.map((dropdown) => (
-                <ClientDropdown
-                  key={dropdown.id}
-                  dropdown={dropdown}
-                  clientId={client.id}
-                  currentValue={client.dropdownValues[dropdown.name] || ''}
-                  onValueChange={updateDropdownValue}
-                />
-              ))}
-            </div>
+            {dropdowns.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {dropdowns.map((dropdown) => (
+                  <ClientDropdown
+                    key={dropdown.id}
+                    dropdown={dropdown}
+                    clientId={client.id}
+                    currentValue={client.dropdownValues[dropdown.name] || ''}
+                    onValueChange={updateDropdownValue}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-4 px-4 bg-muted/20 rounded-lg border border-dashed border-border">
+                <p className="text-sm text-muted-foreground">
+                  No dropdown fields configured. Go to Settings to create custom dropdowns.
+                </p>
+              </div>
+            )}
 
             {/* Notes Section */}
             <div className="space-y-3">

@@ -6,8 +6,7 @@ import {
   subscribeToClients,
   saveDropdown,
   deleteDropdownFromFirestore,
-  subscribeToDropdowns,
-  initializeDefaultDropdowns
+  subscribeToDropdowns
 } from '@/lib/firestore';
 
 // Debounce utility for optimizing frequent updates
@@ -24,12 +23,6 @@ const debouncedSave = (key: string, fn: () => Promise<void>, delay: number = 300
   }, delay);
   debounceTimers.set(key, timer);
 };
-
-const defaultDropdowns: DropdownField[] = [
-  { id: '1', name: 'Lead Status', options: ['New Lead', 'Hot Lead', 'Warm Lead', 'Cold Lead', 'Converted', 'Lost'], createdBy: 'admin', createdAt: new Date() },
-  { id: '2', name: 'Call Outcome', options: ['Not Reached', 'Interested', 'Not Interested', 'Call Back', 'Booked', 'Cancelled'], createdBy: 'admin', createdAt: new Date() },
-  { id: '3', name: 'Priority', options: ['High', 'Medium', 'Low'], createdBy: 'admin', createdAt: new Date() }
-];
 
 interface ClientStore {
   clients: Client[];
@@ -69,7 +62,7 @@ interface ClientStore {
 
 export const useClientStore = create<ClientStore>()((set, get) => ({
   clients: [],
-  dropdowns: defaultDropdowns,
+  dropdowns: [],
   searchQuery: '',
   filterStatus: 'all',
   filterPriority: 'all',
@@ -96,9 +89,6 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     if (unsubscribeClients) unsubscribeClients();
     if (unsubscribeDropdowns) unsubscribeDropdowns();
     
-    // Initialize default dropdowns in Firebase
-    initializeDefaultDropdowns(defaultDropdowns).catch(console.error);
-    
     // Subscribe to clients
     const clientsUnsub = subscribeToClients(
       (clients) => {
@@ -110,12 +100,10 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       }
     );
     
-    // Subscribe to dropdowns
+    // Subscribe to dropdowns - always update with Firebase data (user-created dropdowns)
     const dropdownsUnsub = subscribeToDropdowns(
       (dropdowns) => {
-        if (dropdowns.length > 0) {
-          set({ dropdowns });
-        }
+        set({ dropdowns });
       },
       (error) => {
         console.error('Dropdowns subscription error:', error);
