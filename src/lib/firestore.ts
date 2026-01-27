@@ -55,19 +55,61 @@ const timestampToDate = (timestamp: Timestamp | null | undefined): Date => {
 
 // Convert Client to Firestore format
 const clientToFirestore = (client: Client): DocumentData => {
-  return {
-    ...client,
+  // Ensure dropdownValues is synced with status fields before saving
+  const dropdownValues = { ...(client.dropdownValues || {}) };
+  dropdownValues['Lead Status'] = client.status;
+  dropdownValues['Priority'] = client.priority;
+  if (client.callOutcome) {
+    dropdownValues['Call Outcome'] = client.callOutcome;
+  }
+  
+  // Build the document data explicitly to avoid serialization issues
+  const data: DocumentData = {
+    id: client.id,
+    name: client.name,
+    phone: client.phone,
+    status: client.status,
+    priority: client.priority,
+    followUpRequired: client.followUpRequired,
+    dropdownValues,
     createdAt: dateToTimestamp(client.createdAt),
-    lastContacted: dateToTimestamp(client.lastContacted),
-    notes: client.notes.map(note => ({
-      ...note,
+    notes: (client.notes || []).map(note => ({
+      id: note.id,
+      content: note.content,
+      createdBy: note.createdBy,
       createdAt: dateToTimestamp(note.createdAt)
     }))
   };
+  
+  // Add optional fields only if they have values
+  if (client.email) data.email = client.email;
+  if (client.company) data.company = client.company;
+  if (client.avatarUrl) data.avatarUrl = client.avatarUrl;
+  if (client.callOutcome) data.callOutcome = client.callOutcome;
+  if (client.lastContacted) data.lastContacted = dateToTimestamp(client.lastContacted);
+  
+  return data;
 };
 
 // Convert Firestore document to Client
 const firestoreToClient = (data: DocumentData): Client => {
+  // Ensure dropdownValues is initialized
+  const dropdownValues = { ...(data.dropdownValues || {}) };
+  
+  // The status, priority, and callOutcome fields are the source of truth
+  // Always sync dropdownValues with these fields to ensure consistency
+  // This ensures that the UI always shows the correct saved status
+  const status = data.status || 'New Lead';
+  const priority = data.priority || 'Medium';
+  const callOutcome = data.callOutcome;
+  
+  // Always update dropdownValues to match the status fields
+  dropdownValues['Lead Status'] = status;
+  dropdownValues['Priority'] = priority;
+  if (callOutcome) {
+    dropdownValues['Call Outcome'] = callOutcome;
+  }
+  
   return {
     ...data,
     createdAt: timestampToDate(data.createdAt),
@@ -75,7 +117,12 @@ const firestoreToClient = (data: DocumentData): Client => {
     notes: (data.notes || []).map((note: DocumentData) => ({
       ...note,
       createdAt: timestampToDate(note.createdAt)
-    }))
+    })),
+    dropdownValues,
+    status,
+    priority,
+    callOutcome,
+    followUpRequired: data.followUpRequired ?? true
   } as Client;
 };
 
@@ -101,7 +148,15 @@ const firestoreToDropdown = (data: DocumentData): DropdownField => {
 export const saveClient = async (client: Client, userId?: string): Promise<void> => {
   const collectionPath = getClientsCollectionPath(userId);
   const clientRef = doc(db, collectionPath, client.id);
-  await setDoc(clientRef, clientToFirestore(client));
+  
+  try {
+    const firestoreData = clientToFirestore(client);
+    await setDoc(clientRef, firestoreData);
+    console.log(`[Firestore] Successfully saved client ${client.id} to ${collectionPath}`);
+  } catch (error) {
+    console.error(`[Firestore] Error saving client ${client.id} to ${collectionPath}:`, error);
+    throw error;
+  }
 };
 
 export const deleteClientFromFirestore = async (clientId: string, userId?: string): Promise<void> => {

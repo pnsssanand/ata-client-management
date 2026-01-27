@@ -3,7 +3,8 @@ import { useClientStore } from '@/stores/clientStore';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-const COLORS = {
+// Dynamic color palette for lead statuses - generates consistent colors for any status
+const STATUS_COLORS: Record<string, string> = {
   'New Lead': 'hsl(198, 93%, 59%)',
   'Hot Lead': 'hsl(0, 72%, 50%)',
   'Warm Lead': 'hsl(213, 93%, 67%)',
@@ -11,23 +12,51 @@ const COLORS = {
   'Converted': 'hsl(142, 76%, 36%)',
   'Lost': 'hsl(0, 84%, 60%)',
   'Installed': 'hsl(280, 65%, 60%)',
+  'App Installed': 'hsl(280, 65%, 60%)',
+  'Not answered': 'hsl(38, 92%, 50%)',
+  'App user': 'hsl(262, 83%, 58%)',
+};
+
+// Fallback color generator for custom statuses not in the predefined list
+const getStatusColor = (status: string, index: number): string => {
+  if (STATUS_COLORS[status]) return STATUS_COLORS[status];
+  // Generate a consistent color based on the status string
+  const hue = (index * 137.5) % 360; // Golden angle for good distribution
+  return `hsl(${hue}, 70%, 50%)`;
 };
 
 export function LeadStatusChart() {
-  // Subscribe to clients with individual selector for proper reactivity
+  // Subscribe to clients and dropdowns with individual selector for proper reactivity
   const clients = useClientStore((state) => state.clients);
+  const dropdowns = useClientStore((state) => state.dropdowns);
   const isMobile = useIsMobile();
 
+  // Get lead status dropdown options
+  const leadStatusDropdown = dropdowns.find(d => d.name === 'Lead Status');
+  const statusOptions = leadStatusDropdown?.options || [];
+
+  // Count clients per status, including all defined status options (even if 0)
   const statusCounts = clients.reduce((acc, client) => {
-    acc[client.status] = (acc[client.status] || 0) + 1;
+    const status = client.status || 'Unknown';
+    acc[status] = (acc[status] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
-  const data = Object.entries(statusCounts).map(([name, value]) => ({
-    name,
-    value,
-    color: COLORS[name as keyof typeof COLORS] || 'hsl(215, 16%, 46%)',
-  }));
+  // Create data array with all status options, ensuring all are shown
+  const data = statusOptions.length > 0
+    ? statusOptions.map((status, index) => ({
+        name: status,
+        value: statusCounts[status] || 0,
+        color: getStatusColor(status, index),
+      }))
+    : Object.entries(statusCounts).map(([name, value], index) => ({
+        name,
+        value,
+        color: getStatusColor(name, index),
+      }));
+
+  // Filter out zero values for the pie chart (but keep them in legend)
+  const chartData = data.filter(d => d.value > 0);
 
   return (
     <Card className="border-border/50">
@@ -35,7 +64,7 @@ export function LeadStatusChart() {
         <CardTitle className="text-base lg:text-lg font-semibold">Lead Status Overview</CardTitle>
       </CardHeader>
       <CardContent className="px-4 lg:px-6">
-        {data.length === 0 ? (
+        {chartData.length === 0 ? (
           <div className="h-[200px] lg:h-[280px] flex items-center justify-center">
             <p className="text-sm text-muted-foreground">No data to display</p>
           </div>
@@ -43,7 +72,7 @@ export function LeadStatusChart() {
           <ResponsiveContainer width="100%" height={isMobile ? 220 : 280}>
             <PieChart>
               <Pie
-                data={data}
+                data={chartData}
                 cx="50%"
                 cy="50%"
                 innerRadius={isMobile ? 40 : 60}
@@ -51,7 +80,7 @@ export function LeadStatusChart() {
                 paddingAngle={2}
                 dataKey="value"
               >
-                {data.map((entry, index) => (
+                {chartData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={entry.color} />
                 ))}
               </Pie>

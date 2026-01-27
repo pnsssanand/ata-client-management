@@ -1,4 +1,4 @@
-import { useState, useCallback, memo, useEffect, useRef } from 'react';
+import { useState, useCallback, memo, useEffect } from 'react';
 import { Phone, MessageCircle, Clock, Building, Mail, ChevronDown, ChevronUp, Plus, Trash2, Check } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,31 +33,41 @@ const ClientDropdown = memo(({
 }) => {
   const [localValue, setLocalValue] = useState(currentValue);
   const [isOpen, setIsOpen] = useState(false);
-  const prevValueRef = useRef(currentValue);
+  const [isUpdating, setIsUpdating] = useState(false);
   
-  // Sync local value with prop when it changes from external source (real-time updates)
+  // Always sync with prop value for real-time updates
   useEffect(() => {
-    if (currentValue !== prevValueRef.current) {
-      setLocalValue(currentValue);
-      prevValueRef.current = currentValue;
-    }
+    setLocalValue(currentValue);
   }, [currentValue]);
 
-  const handleChange = useCallback((value: string) => {
+  const handleChange = useCallback(async (value: string) => {
+    if (isUpdating) return;
+    setIsUpdating(true);
+    
     // Immediately update local state for responsive UI
     setLocalValue(value);
-    prevValueRef.current = value;
+    setIsOpen(false);
+    
     // Propagate to store
-    onValueChange(clientId, dropdown.name, value);
-    // Show feedback toast on mobile
-    if (window.innerWidth < 768) {
-      toast.success(`${dropdown.name} updated`, { duration: 1500 });
+    try {
+      await onValueChange(clientId, dropdown.name, value);
+      // Show feedback toast on mobile
+      if (window.innerWidth < 768) {
+        toast.success(`${dropdown.name} updated`, { duration: 1500 });
+      }
+    } catch (error) {
+      // Revert on error
+      setLocalValue(currentValue);
+      toast.error('Failed to update', { duration: 1500 });
+    } finally {
+      setIsUpdating(false);
     }
+    
     // Auto-close expanded section after update
     if (onUpdate) {
       setTimeout(() => onUpdate(), 300);
     }
-  }, [clientId, dropdown.name, onValueChange, onUpdate]);
+  }, [clientId, dropdown.name, onValueChange, onUpdate, currentValue, isUpdating]);
 
   return (
     <div className="space-y-1.5">
@@ -67,22 +77,23 @@ const ClientDropdown = memo(({
         onValueChange={handleChange}
         open={isOpen}
         onOpenChange={setIsOpen}
+        disabled={isUpdating}
       >
-        <SelectTrigger className="bg-card h-11 md:h-10">
+        <SelectTrigger className={cn("bg-card h-11 md:h-10 transition-opacity", isUpdating && "opacity-70")}>
           <SelectValue placeholder={`Select ${dropdown.name}`} />
         </SelectTrigger>
         <SelectContent 
           position="popper" 
           side="bottom" 
           align="start"
-          className="max-h-[50vh] overflow-y-auto"
+          className="max-h-[50vh] overflow-y-auto z-[100]"
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
           {dropdown.options.map((option) => (
             <SelectItem 
               key={option} 
               value={option}
-              className="py-3 md:py-2"
+              className="py-3 md:py-2 cursor-pointer"
             >
               {option}
             </SelectItem>
@@ -101,6 +112,9 @@ const statusColors: Record<string, string> = {
   'Converted': 'bg-emerald-500/20 text-emerald-600 border-emerald-500/30',
   'Lost': 'bg-destructive/10 text-destructive/70 border-destructive/20',
   'Installed': 'bg-purple-500/20 text-purple-600 border-purple-500/30',
+  'App Installed': 'bg-purple-500/20 text-purple-600 border-purple-500/30',
+  'Not answered': 'bg-yellow-500/20 text-yellow-600 border-yellow-500/30',
+  'App user': 'bg-violet-500/20 text-violet-600 border-violet-500/30',
 };
 
 const priorityColors: Record<string, string> = {
@@ -113,11 +127,23 @@ export function ClientCard({ client }: ClientCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [newNote, setNewNote] = useState('');
   const [statusOpen, setStatusOpen] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [optimisticStatus, setOptimisticStatus] = useState<string | null>(null);
   const { dropdowns, updateDropdownValue, addNote } = useClientStore();
 
   // Get lead status dropdown options
   const leadStatusDropdown = dropdowns.find(d => d.name === 'Lead Status');
   const statusOptions = leadStatusDropdown?.options || [];
+
+  // Use optimistic status if set, otherwise use client status
+  const displayStatus = optimisticStatus || client.status;
+
+  // Sync optimistic status when client status changes (from server or other updates)
+  useEffect(() => {
+    if (optimisticStatus && client.status === optimisticStatus) {
+      setOptimisticStatus(null);
+    }
+  }, [client.status, optimisticStatus]);
 
   const handleCall = () => {
     window.location.href = `tel:${client.phone.replace(/\s/g, '')}`;
@@ -128,21 +154,40 @@ export function ClientCard({ client }: ClientCardProps) {
     window.open(`https://wa.me/${phone}`, '_blank');
   };
 
-  const handleAddNote = () => {
+  const handleAddNote = async () => {
     if (newNote.trim()) {
-      addNote(client.id, newNote.trim());
-      setNewNote('');
-      toast.success('Note added successfully', { duration: 1500 });
-      // Auto-close expanded section after adding note
-      setTimeout(() => setExpanded(false), 300);
+      try {
+        await addNote(client.id, newNote.trim());
+        setNewNote('');
+        toast.success('Note added successfully', { duration: 1500 });
+        // Auto-close expanded section after adding note
+        setTimeout(() => setExpanded(false), 300);
+      } catch (error) {
+        toast.error('Failed to add note', { duration: 1500 });
+      }
     }
   };
 
-  const handleStatusChange = (newStatus: string) => {
-    // updateDropdownValue already handles updating both status and dropdownValues['Lead Status']
-    updateDropdownValue(client.id, 'Lead Status', newStatus);
+  const handleStatusChange = async (newStatus: string) => {
+    if (isUpdatingStatus || newStatus === displayStatus) {
+      setStatusOpen(false);
+      return;
+    }
+    
+    setIsUpdatingStatus(true);
+    setOptimisticStatus(newStatus); // Immediate visual feedback
     setStatusOpen(false);
-    toast.success(`Status updated to "${newStatus}"`, { duration: 1500 });
+    
+    try {
+      await updateDropdownValue(client.id, 'Lead Status', newStatus);
+      toast.success(`Status updated to "${newStatus}"`, { duration: 1500 });
+    } catch (error) {
+      // Revert optimistic update on error
+      setOptimisticStatus(null);
+      toast.error('Failed to update status', { duration: 1500 });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
   };
 
   return (
@@ -191,23 +236,41 @@ export function ClientCard({ client }: ClientCardProps) {
 
             {/* Status Badge - Clickable to update */}
             {statusOptions.length > 0 ? (
-              <Popover open={statusOpen} onOpenChange={setStatusOpen}>
+              <Popover open={statusOpen} onOpenChange={(open) => !isUpdatingStatus && setStatusOpen(open)}>
                 <PopoverTrigger asChild>
                   <Badge 
                     variant="outline" 
                     className={cn(
-                      "shrink-0 cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all touch-manipulation",
-                      statusColors[client.status] || 'bg-muted/50 text-muted-foreground border-muted'
+                      "shrink-0 cursor-pointer hover:ring-2 hover:ring-primary/30 transition-all touch-manipulation select-none",
+                      statusColors[displayStatus] || 'bg-muted/50 text-muted-foreground border-muted',
+                      isUpdatingStatus && "opacity-70 pointer-events-none"
                     )}
                   >
-                    {client.status || 'Set Status'}
-                    <ChevronDown className="h-3 w-3 ml-1" />
+                    {isUpdatingStatus ? (
+                      <span className="flex items-center gap-1">
+                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        Updating...
+                      </span>
+                    ) : (
+                      <>
+                        {displayStatus || 'Set Status'}
+                        <ChevronDown className="h-3 w-3 ml-1" />
+                      </>
+                    )}
                   </Badge>
                 </PopoverTrigger>
                 <PopoverContent 
-                  className="w-48 p-1" 
+                  className="w-48 p-1 z-[100]" 
                   align="end"
+                  side="bottom"
+                  sideOffset={5}
                   onCloseAutoFocus={(e) => e.preventDefault()}
+                  onPointerDownOutside={(e) => {
+                    // Prevent closing when clicking on scroll bar
+                    if ((e.target as HTMLElement)?.closest?.('[data-radix-scroll-area-viewport]')) {
+                      e.preventDefault();
+                    }
+                  }}
                 >
                   <div className="space-y-1">
                     <p className="text-xs font-medium text-muted-foreground px-2 py-1.5">Update Status</p>
@@ -215,11 +278,13 @@ export function ClientCard({ client }: ClientCardProps) {
                       <button
                         key={status}
                         onClick={() => handleStatusChange(status)}
+                        disabled={isUpdatingStatus}
                         className={cn(
                           "w-full flex items-center justify-between px-2 py-2.5 md:py-2 text-sm rounded-md transition-colors touch-manipulation",
-                          client.status === status 
+                          displayStatus === status 
                             ? "bg-primary/10 text-primary" 
-                            : "hover:bg-muted"
+                            : "hover:bg-muted active:bg-muted/80",
+                          isUpdatingStatus && "opacity-50 cursor-not-allowed"
                         )}
                       >
                         <span className="flex items-center gap-2">
@@ -232,19 +297,22 @@ export function ClientCard({ client }: ClientCardProps) {
                             status === 'Converted' && "bg-emerald-500",
                             status === 'Lost' && "bg-destructive/70",
                             status === 'Installed' && "bg-purple-500",
-                            !['New Lead', 'Hot Lead', 'Warm Lead', 'Cold Lead', 'Converted', 'Lost', 'Installed'].includes(status) && "bg-primary"
+                            status === 'App Installed' && "bg-purple-500",
+                            status === 'Not answered' && "bg-yellow-500",
+                            status === 'App user' && "bg-violet-500",
+                            !['New Lead', 'Hot Lead', 'Warm Lead', 'Cold Lead', 'Converted', 'Lost', 'Installed', 'App Installed', 'Not answered', 'App user'].includes(status) && "bg-primary"
                           )} />
                           {status}
                         </span>
-                        {client.status === status && <Check className="h-4 w-4" />}
+                        {displayStatus === status && <Check className="h-4 w-4" />}
                       </button>
                     ))}
                   </div>
                 </PopoverContent>
               </Popover>
             ) : (
-              <Badge variant="outline" className={cn("shrink-0", statusColors[client.status] || 'bg-muted/50 text-muted-foreground border-muted')}>
-                {client.status || 'No Status'}
+              <Badge variant="outline" className={cn("shrink-0", statusColors[displayStatus] || 'bg-muted/50 text-muted-foreground border-muted')}>
+                {displayStatus || 'No Status'}
               </Badge>
             )}
           </div>

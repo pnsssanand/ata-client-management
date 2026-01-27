@@ -178,12 +178,26 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     const { currentUserId } = get();
     // Generate a unique ID using timestamp + random string to avoid collisions
     const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Initialize dropdownValues with the status, priority, and callOutcome values
+    // This ensures consistency between the main fields and dropdownValues
+    const dropdownValues: Record<string, string> = {};
+    if (client.status) {
+      dropdownValues['Lead Status'] = client.status;
+    }
+    if (client.priority) {
+      dropdownValues['Priority'] = client.priority;
+    }
+    if (client.callOutcome) {
+      dropdownValues['Call Outcome'] = client.callOutcome;
+    }
+    
     const newClient: Client = {
       ...client,
       id: uniqueId,
       createdAt: new Date(),
       notes: [],
-      dropdownValues: {}
+      dropdownValues
     };
     
     // Optimistically update local state
@@ -308,6 +322,8 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
     
+    const previousClient = { ...client }; // Store for rollback
+    
     const updatedClient = {
       ...client,
       dropdownValues: { ...client.dropdownValues, [fieldName]: value },
@@ -322,29 +338,34 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     }));
     
     // Save immediately for important fields like Lead Status
-    // Use debounce only for rapid consecutive changes on same client
-    const debounceKey = `client-dropdown-${clientId}`;
     const isImportantField = fieldName === 'Lead Status' || fieldName === 'Call Outcome' || fieldName === 'Priority';
     
     const saveFunction = async () => {
-      try {
-        // Get the latest client state before saving
-        const currentClients = get().clients;
-        const userId = get().currentUserId;
-        const latestClient = currentClients.find(c => c.id === clientId);
-        if (latestClient) {
-          await saveClient(latestClient, userId || undefined);
-        }
-      } catch (error) {
-        console.error('Error updating dropdown value:', error);
+      // Get the latest client state before saving
+      const currentClients = get().clients;
+      const userId = get().currentUserId;
+      const latestClient = currentClients.find(c => c.id === clientId);
+      if (latestClient) {
+        await saveClient(latestClient, userId || undefined);
+        console.log(`[Firestore] Saved ${fieldName} = "${value}" for client ${clientId}`);
       }
     };
     
     if (isImportantField) {
-      // Save immediately for important fields
-      await saveFunction();
+      // Save immediately for important fields and propagate errors
+      try {
+        await saveFunction();
+      } catch (error) {
+        console.error('Error updating dropdown value:', error);
+        // Rollback to previous state on error
+        set((state) => ({
+          clients: state.clients.map((c) => c.id === clientId ? previousClient : c)
+        }));
+        throw error; // Re-throw to notify caller
+      }
     } else {
       // Debounce for other fields to prevent rapid consecutive writes
+      const debounceKey = `client-dropdown-${clientId}`;
       debouncedSave(debounceKey, saveFunction, 500);
     }
   },
