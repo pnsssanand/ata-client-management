@@ -32,6 +32,7 @@ interface ClientStore {
   filterPriority: string;
   filterCallOutcome: string;
   currentUser: User | null;
+  currentUserId: string | null;
   isLoading: boolean;
   isInitialized: boolean;
   isSynced: boolean;
@@ -56,7 +57,7 @@ interface ClientStore {
   deleteDropdownOption: (fieldId: string, index: number) => Promise<void>;
   setCurrentUser: (user: User | null) => void;
   filteredClients: () => Client[];
-  initializeFirebase: () => void;
+  initializeFirebase: (userId?: string) => void;
   cleanup: () => void;
 }
 
@@ -68,6 +69,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   filterPriority: 'all',
   filterCallOutcome: 'all',
   currentUser: null,
+  currentUserId: null,
   isLoading: true,
   isInitialized: false,
   isSynced: false,
@@ -80,16 +82,19 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   setFilterPriority: (priority) => set({ filterPriority: priority }),
   setFilterCallOutcome: (callOutcome) => set({ filterCallOutcome: callOutcome }),
   
-  initializeFirebase: () => {
+  initializeFirebase: (userId?: string) => {
     const { isInitialized, unsubscribeClients, unsubscribeDropdowns } = get();
     
     if (isInitialized) return;
+    
+    // Store the userId for later use in save/delete operations
+    set({ currentUserId: userId || null });
     
     // Clean up existing subscriptions
     if (unsubscribeClients) unsubscribeClients();
     if (unsubscribeDropdowns) unsubscribeDropdowns();
     
-    // Subscribe to clients
+    // Subscribe to clients (pass userId to use user-specific collection)
     const clientsUnsub = subscribeToClients(
       (clients) => {
         set({ clients, isLoading: false, isSynced: true, lastSyncTime: new Date() });
@@ -97,17 +102,53 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       (error) => {
         console.error('Clients subscription error:', error);
         set({ isLoading: false, isSynced: false });
-      }
+      },
+      userId
     );
     
-    // Subscribe to dropdowns - always update with Firebase data (user-created dropdowns)
+    // Default dropdown configurations for new users
+    const defaultDropdowns: DropdownField[] = [
+      {
+        id: 'default-lead-status',
+        name: 'Lead Status',
+        options: ['New Lead', 'Hot Lead', 'Warm Lead', 'Cold Lead', 'Converted', 'Lost', 'Installed'],
+        createdBy: 'system',
+        createdAt: new Date()
+      },
+      {
+        id: 'default-call-outcome',
+        name: 'Call Outcome',
+        options: ['Connected', 'No Answer', 'Busy', 'Wrong Number', 'Voicemail', 'Call Back Later', 'Not Interested'],
+        createdBy: 'system',
+        createdAt: new Date()
+      }
+    ];
+    
+    // Subscribe to dropdowns - initialize defaults if empty (for new users)
+    let hasInitializedDefaults = false;
     const dropdownsUnsub = subscribeToDropdowns(
-      (dropdowns) => {
-        set({ dropdowns });
+      async (dropdowns) => {
+        // If this is a new user with no dropdowns, initialize defaults
+        if (dropdowns.length === 0 && userId && !hasInitializedDefaults) {
+          hasInitializedDefaults = true;
+          // Set defaults immediately in local state for responsive UI
+          set({ dropdowns: defaultDropdowns });
+          // Save default dropdowns for the new user to Firebase
+          for (const dropdown of defaultDropdowns) {
+            try {
+              await saveDropdown(dropdown, userId);
+            } catch (error) {
+              console.error('Error saving default dropdown:', error);
+            }
+          }
+        } else {
+          set({ dropdowns });
+        }
       },
       (error) => {
         console.error('Dropdowns subscription error:', error);
-      }
+      },
+      userId
     );
     
     set({ 
@@ -122,13 +163,19 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     if (unsubscribeClients) unsubscribeClients();
     if (unsubscribeDropdowns) unsubscribeDropdowns();
     set({ 
+      clients: [],
+      dropdowns: [],
+      currentUserId: null,
       isInitialized: false, 
+      isLoading: true,
+      isSynced: false,
       unsubscribeClients: null, 
       unsubscribeDropdowns: null 
     });
   },
   
   addClient: async (client) => {
+    const { currentUserId } = get();
     // Generate a unique ID using timestamp + random string to avoid collisions
     const uniqueId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const newClient: Client = {
@@ -142,9 +189,9 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     // Optimistically update local state
     set((state) => ({ clients: [...state.clients, newClient] }));
     
-    // Save to Firebase
+    // Save to Firebase with user-specific collection
     try {
-      await saveClient(newClient);
+      await saveClient(newClient, currentUserId || undefined);
     } catch (error) {
       console.error('Error saving client:', error);
       // Rollback on error
@@ -154,7 +201,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   },
   
   updateClient: async (id, updates) => {
-    const { clients } = get();
+    const { clients, currentUserId } = get();
     const client = clients.find(c => c.id === id);
     if (!client) return;
     
@@ -165,9 +212,9 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       clients: state.clients.map((c) => c.id === id ? updatedClient : c)
     }));
     
-    // Save to Firebase
+    // Save to Firebase with user-specific collection
     try {
-      await saveClient(updatedClient);
+      await saveClient(updatedClient, currentUserId || undefined);
     } catch (error) {
       console.error('Error updating client:', error);
       // Rollback
@@ -179,7 +226,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   },
   
   deleteClient: async (id) => {
-    const { clients } = get();
+    const { clients, currentUserId } = get();
     const client = clients.find(c => c.id === id);
     
     // Optimistically update
@@ -187,9 +234,9 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       clients: state.clients.filter((c) => c.id !== id)
     }));
     
-    // Delete from Firebase
+    // Delete from Firebase with user-specific collection
     try {
-      await deleteClientFromFirestore(id);
+      await deleteClientFromFirestore(id, currentUserId || undefined);
     } catch (error) {
       console.error('Error deleting client:', error);
       // Rollback
@@ -203,7 +250,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   },
   
   deleteMultipleClients: async (ids) => {
-    const { clients } = get();
+    const { clients, currentUserId } = get();
     const clientsToDelete = clients.filter(c => ids.includes(c.id));
     
     // Optimistically update
@@ -211,9 +258,9 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       clients: state.clients.filter((c) => !ids.includes(c.id))
     }));
     
-    // Delete from Firebase
+    // Delete from Firebase with user-specific collection
     try {
-      await Promise.all(ids.map(id => deleteClientFromFirestore(id)));
+      await Promise.all(ids.map(id => deleteClientFromFirestore(id, currentUserId || undefined)));
     } catch (error) {
       console.error('Error deleting clients:', error);
       // Rollback
@@ -225,7 +272,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   },
   
   addNote: async (clientId, content) => {
-    const { clients, currentUser } = get();
+    const { clients, currentUser, currentUserId } = get();
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
     
@@ -246,7 +293,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     }));
     
     try {
-      await saveClient(updatedClient);
+      await saveClient(updatedClient, currentUserId || undefined);
     } catch (error) {
       console.error('Error adding note:', error);
       set((state) => ({
@@ -257,7 +304,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   },
   
   updateDropdownValue: async (clientId, fieldName, value) => {
-    const { clients } = get();
+    const { clients, currentUserId } = get();
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
     
@@ -274,26 +321,36 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       clients: state.clients.map((c) => c.id === clientId ? updatedClient : c)
     }));
     
-    // Debounce Firebase save to prevent rapid consecutive writes
-    // This key ensures each client's dropdown changes are debounced separately
+    // Save immediately for important fields like Lead Status
+    // Use debounce only for rapid consecutive changes on same client
     const debounceKey = `client-dropdown-${clientId}`;
-    debouncedSave(debounceKey, async () => {
+    const isImportantField = fieldName === 'Lead Status' || fieldName === 'Call Outcome' || fieldName === 'Priority';
+    
+    const saveFunction = async () => {
       try {
         // Get the latest client state before saving
         const currentClients = get().clients;
+        const userId = get().currentUserId;
         const latestClient = currentClients.find(c => c.id === clientId);
         if (latestClient) {
-          await saveClient(latestClient);
+          await saveClient(latestClient, userId || undefined);
         }
       } catch (error) {
         console.error('Error updating dropdown value:', error);
-        // Note: We don't rollback here as the user may have made more changes
-        // The next sync from Firebase will reconcile the state
       }
-    }, 500);
+    };
+    
+    if (isImportantField) {
+      // Save immediately for important fields
+      await saveFunction();
+    } else {
+      // Debounce for other fields to prevent rapid consecutive writes
+      debouncedSave(debounceKey, saveFunction, 500);
+    }
   },
   
   addDropdownField: async (field) => {
+    const { currentUserId } = get();
     const newDropdown: DropdownField = {
       ...field,
       id: Date.now().toString(),
@@ -305,7 +362,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     }));
     
     try {
-      await saveDropdown(newDropdown);
+      await saveDropdown(newDropdown, currentUserId || undefined);
     } catch (error) {
       console.error('Error adding dropdown field:', error);
       set((state) => ({
@@ -316,7 +373,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   },
   
   updateDropdownField: async (id, updates) => {
-    const { dropdowns } = get();
+    const { dropdowns, currentUserId } = get();
     const dropdown = dropdowns.find(d => d.id === id);
     if (!dropdown) return;
     
@@ -327,7 +384,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     }));
     
     try {
-      await saveDropdown(updatedDropdown);
+      await saveDropdown(updatedDropdown, currentUserId || undefined);
     } catch (error) {
       console.error('Error updating dropdown field:', error);
       set((state) => ({
@@ -338,7 +395,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   },
   
   deleteDropdownField: async (id) => {
-    const { dropdowns } = get();
+    const { dropdowns, currentUserId } = get();
     const dropdown = dropdowns.find(d => d.id === id);
     
     set((state) => ({
@@ -346,7 +403,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     }));
     
     try {
-      await deleteDropdownFromFirestore(id);
+      await deleteDropdownFromFirestore(id, currentUserId || undefined);
     } catch (error) {
       console.error('Error deleting dropdown field:', error);
       if (dropdown) {
@@ -357,7 +414,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   },
   
   addDropdownOption: async (fieldId, option) => {
-    const { dropdowns } = get();
+    const { dropdowns, currentUserId } = get();
     const dropdown = dropdowns.find(d => d.id === fieldId);
     if (!dropdown) return;
     
@@ -372,7 +429,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     }));
     
     try {
-      await saveDropdown(updatedDropdown);
+      await saveDropdown(updatedDropdown, currentUserId || undefined);
     } catch (error) {
       console.error('Error adding dropdown option:', error);
       set((state) => ({
@@ -383,7 +440,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   },
   
   updateDropdownOption: async (fieldId, index, newValue) => {
-    const { dropdowns } = get();
+    const { dropdowns, currentUserId } = get();
     const dropdown = dropdowns.find(d => d.id === fieldId);
     if (!dropdown) return;
     
@@ -398,7 +455,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     }));
     
     try {
-      await saveDropdown(updatedDropdown);
+      await saveDropdown(updatedDropdown, currentUserId || undefined);
     } catch (error) {
       console.error('Error updating dropdown option:', error);
       set((state) => ({
@@ -409,7 +466,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   },
   
   deleteDropdownOption: async (fieldId, index) => {
-    const { dropdowns } = get();
+    const { dropdowns, currentUserId } = get();
     const dropdown = dropdowns.find(d => d.id === fieldId);
     if (!dropdown) return;
     
@@ -424,7 +481,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     }));
     
     try {
-      await saveDropdown(updatedDropdown);
+      await saveDropdown(updatedDropdown, currentUserId || undefined);
     } catch (error) {
       console.error('Error deleting dropdown option:', error);
       set((state) => ({

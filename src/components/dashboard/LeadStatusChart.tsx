@@ -10,6 +10,7 @@ const COLORS = {
   'Cold Lead': 'hsl(215, 20%, 65%)',
   'Converted': 'hsl(142, 76%, 36%)',
   'Lost': 'hsl(0, 84%, 60%)',
+  'Installed': 'hsl(280, 65%, 60%)',
 };
 
 export function LeadStatusChart() {

@@ -11,9 +11,35 @@ import {
 import { db } from './firebase';
 import { Client, DropdownField, Note } from '@/types/client';
 
-// Collection references
-const CLIENTS_COLLECTION = 'clients';
-const DROPDOWNS_COLLECTION = 'dropdowns';
+// Helper to get user-specific collection path
+const getUserClientsCollection = (userId: string) => `users/${userId}/clients`;
+const getUserDropdownsCollection = (userId: string) => `users/${userId}/dropdowns`;
+
+// Legacy collection references (for backward compatibility with existing data)
+const LEGACY_CLIENTS_COLLECTION = 'clients';
+const LEGACY_DROPDOWNS_COLLECTION = 'dropdowns';
+
+// Legacy user ID - this user uses the old collection structure
+const LEGACY_USER_ID = 'anandtravelagency';
+
+// Helper to get correct collection path based on userId
+const getClientsCollectionPath = (userId?: string): string => {
+  // If no userId or legacy user, use legacy collection
+  if (!userId || userId === LEGACY_USER_ID) {
+    return LEGACY_CLIENTS_COLLECTION;
+  }
+  // New users get user-specific collections
+  return getUserClientsCollection(userId);
+};
+
+const getDropdownsCollectionPath = (userId?: string): string => {
+  // If no userId or legacy user, use legacy collection
+  if (!userId || userId === LEGACY_USER_ID) {
+    return LEGACY_DROPDOWNS_COLLECTION;
+  }
+  // New users get user-specific collections
+  return getUserDropdownsCollection(userId);
+};
 
 // Convert Date to Firestore Timestamp
 const dateToTimestamp = (date: Date | undefined): Timestamp | null => {
@@ -72,22 +98,26 @@ const firestoreToDropdown = (data: DocumentData): DropdownField => {
 };
 
 // Client operations
-export const saveClient = async (client: Client): Promise<void> => {
-  const clientRef = doc(db, CLIENTS_COLLECTION, client.id);
+export const saveClient = async (client: Client, userId?: string): Promise<void> => {
+  const collectionPath = getClientsCollectionPath(userId);
+  const clientRef = doc(db, collectionPath, client.id);
   await setDoc(clientRef, clientToFirestore(client));
 };
 
-export const deleteClientFromFirestore = async (clientId: string): Promise<void> => {
-  const clientRef = doc(db, CLIENTS_COLLECTION, clientId);
+export const deleteClientFromFirestore = async (clientId: string, userId?: string): Promise<void> => {
+  const collectionPath = getClientsCollectionPath(userId);
+  const clientRef = doc(db, collectionPath, clientId);
   await deleteDoc(clientRef);
 };
 
 // Subscribe to clients collection
 export const subscribeToClients = (
   onClientsChange: (clients: Client[]) => void,
-  onError?: (error: Error) => void
+  onError?: (error: Error) => void,
+  userId?: string
 ) => {
-  const clientsRef = collection(db, CLIENTS_COLLECTION);
+  const collectionPath = getClientsCollectionPath(userId);
+  const clientsRef = collection(db, collectionPath);
   
   return onSnapshot(
     clientsRef,
@@ -108,22 +138,26 @@ export const subscribeToClients = (
 };
 
 // Dropdown operations
-export const saveDropdown = async (dropdown: DropdownField): Promise<void> => {
-  const dropdownRef = doc(db, DROPDOWNS_COLLECTION, dropdown.id);
+export const saveDropdown = async (dropdown: DropdownField, userId?: string): Promise<void> => {
+  const collectionPath = getDropdownsCollectionPath(userId);
+  const dropdownRef = doc(db, collectionPath, dropdown.id);
   await setDoc(dropdownRef, dropdownToFirestore(dropdown));
 };
 
-export const deleteDropdownFromFirestore = async (dropdownId: string): Promise<void> => {
-  const dropdownRef = doc(db, DROPDOWNS_COLLECTION, dropdownId);
+export const deleteDropdownFromFirestore = async (dropdownId: string, userId?: string): Promise<void> => {
+  const collectionPath = getDropdownsCollectionPath(userId);
+  const dropdownRef = doc(db, collectionPath, dropdownId);
   await deleteDoc(dropdownRef);
 };
 
 // Subscribe to dropdowns collection
 export const subscribeToDropdowns = (
   onDropdownsChange: (dropdowns: DropdownField[]) => void,
-  onError?: (error: Error) => void
+  onError?: (error: Error) => void,
+  userId?: string
 ) => {
-  const dropdownsRef = collection(db, DROPDOWNS_COLLECTION);
+  const collectionPath = getDropdownsCollectionPath(userId);
+  const dropdownsRef = collection(db, collectionPath);
   
   return onSnapshot(
     dropdownsRef,

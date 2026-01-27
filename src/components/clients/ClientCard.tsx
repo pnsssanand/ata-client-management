@@ -22,12 +22,14 @@ const ClientDropdown = memo(({
   dropdown, 
   clientId, 
   currentValue,
-  onValueChange 
+  onValueChange,
+  onUpdate 
 }: { 
   dropdown: DropdownField; 
   clientId: string; 
   currentValue: string;
   onValueChange: (clientId: string, fieldName: string, value: string) => void;
+  onUpdate?: () => void;
 }) => {
   const [localValue, setLocalValue] = useState(currentValue);
   const [isOpen, setIsOpen] = useState(false);
@@ -51,7 +53,11 @@ const ClientDropdown = memo(({
     if (window.innerWidth < 768) {
       toast.success(`${dropdown.name} updated`, { duration: 1500 });
     }
-  }, [clientId, dropdown.name, onValueChange]);
+    // Auto-close expanded section after update
+    if (onUpdate) {
+      setTimeout(() => onUpdate(), 300);
+    }
+  }, [clientId, dropdown.name, onValueChange, onUpdate]);
 
   return (
     <div className="space-y-1.5">
@@ -94,6 +100,7 @@ const statusColors: Record<string, string> = {
   'Cold Lead': 'bg-muted text-muted-foreground border-muted',
   'Converted': 'bg-emerald-500/20 text-emerald-600 border-emerald-500/30',
   'Lost': 'bg-destructive/10 text-destructive/70 border-destructive/20',
+  'Installed': 'bg-purple-500/20 text-purple-600 border-purple-500/30',
 };
 
 const priorityColors: Record<string, string> = {
@@ -106,7 +113,7 @@ export function ClientCard({ client }: ClientCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [newNote, setNewNote] = useState('');
   const [statusOpen, setStatusOpen] = useState(false);
-  const { dropdowns, updateDropdownValue, addNote, updateClient } = useClientStore();
+  const { dropdowns, updateDropdownValue, addNote } = useClientStore();
 
   // Get lead status dropdown options
   const leadStatusDropdown = dropdowns.find(d => d.name === 'Lead Status');
@@ -125,11 +132,14 @@ export function ClientCard({ client }: ClientCardProps) {
     if (newNote.trim()) {
       addNote(client.id, newNote.trim());
       setNewNote('');
+      toast.success('Note added successfully', { duration: 1500 });
+      // Auto-close expanded section after adding note
+      setTimeout(() => setExpanded(false), 300);
     }
   };
 
   const handleStatusChange = (newStatus: string) => {
-    updateClient(client.id, { status: newStatus });
+    // updateDropdownValue already handles updating both status and dropdownValues['Lead Status']
     updateDropdownValue(client.id, 'Lead Status', newStatus);
     setStatusOpen(false);
     toast.success(`Status updated to "${newStatus}"`, { duration: 1500 });
@@ -221,7 +231,8 @@ export function ClientCard({ client }: ClientCardProps) {
                             status === 'Cold Lead' && "bg-muted-foreground",
                             status === 'Converted' && "bg-emerald-500",
                             status === 'Lost' && "bg-destructive/70",
-                            !['New Lead', 'Hot Lead', 'Warm Lead', 'Cold Lead', 'Converted', 'Lost'].includes(status) && "bg-primary"
+                            status === 'Installed' && "bg-purple-500",
+                            !['New Lead', 'Hot Lead', 'Warm Lead', 'Cold Lead', 'Converted', 'Lost', 'Installed'].includes(status) && "bg-primary"
                           )} />
                           {status}
                         </span>
@@ -289,6 +300,7 @@ export function ClientCard({ client }: ClientCardProps) {
                     clientId={client.id}
                     currentValue={client.dropdownValues[dropdown.name] || ''}
                     onValueChange={updateDropdownValue}
+                    onUpdate={() => setExpanded(false)}
                   />
                 ))}
               </div>

@@ -48,9 +48,9 @@ export function DashboardStats() {
   const clients = useClientStore((state) => state.clients);
 
   const totalClients = clients.length;
-  const hotLeads = clients.filter(c => c.status === 'Hot Lead').length;
+  const lostLeads = clients.filter(c => c.status === 'Lost').length;
   const converted = clients.filter(c => c.status === 'Converted').length;
-  const pendingFollowup = clients.filter(c => c.followUpRequired).length;
+  const installedLeads = clients.filter(c => c.status === 'Installed').length;
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
@@ -61,8 +61,8 @@ export function DashboardStats() {
         iconBg="bg-primary/10"
       />
       <StatCard
-        title="Hot Leads"
-        value={hotLeads}
+        title="Lost"
+        value={lostLeads}
         icon={<TrendingUp className="h-5 w-5 lg:h-6 lg:w-6 text-destructive" />}
         iconBg="bg-destructive/10"
       />
@@ -73,8 +73,8 @@ export function DashboardStats() {
         iconBg="bg-emerald-500/10"
       />
       <StatCard
-        title="Follow-up"
-        value={pendingFollowup}
+        title="Installed"
+        value={installedLeads}
         icon={<Clock className="h-5 w-5 lg:h-6 lg:w-6 text-chart-2" />}
         iconBg="bg-chart-2/10"
       />

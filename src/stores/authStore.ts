@@ -5,6 +5,7 @@ interface AuthUser {
   email: string;
   name: string;
   role: 'admin' | 'staff';
+  userId: string;
 }
 
 interface AuthStore {
@@ -14,13 +15,23 @@ interface AuthStore {
   logout: () => void;
 }
 
-// Hardcoded credentials
-const VALID_CREDENTIALS = {
-  email: 'anandtravelagency@gmail.com',
-  password: 'anandtravelagency@gmail.com',
-  name: 'Anand Travel Agency',
-  role: 'admin' as const
-};
+// Hardcoded credentials for multiple users
+const VALID_USERS = [
+  {
+    email: 'anandtravelagency@gmail.com',
+    password: 'anandtravelagency@gmail.com',
+    name: 'Anand Travel Agency',
+    role: 'admin' as const,
+    userId: 'anandtravelagency'
+  },
+  {
+    email: 'atamanager@gmail.com',
+    password: 'atamanager@gmail.com',
+    name: 'ATA Manager',
+    role: 'admin' as const,
+    userId: 'atamanager'
+  }
+];
 
 export const useAuthStore = create<AuthStore>()(
   persist(
@@ -29,13 +40,18 @@ export const useAuthStore = create<AuthStore>()(
       user: null,
 
       login: (email: string, password: string) => {
-        if (email === VALID_CREDENTIALS.email && password === VALID_CREDENTIALS.password) {
+        const validUser = VALID_USERS.find(
+          user => user.email === email && user.password === password
+        );
+        
+        if (validUser) {
           set({
             isAuthenticated: true,
             user: {
-              email: VALID_CREDENTIALS.email,
-              name: VALID_CREDENTIALS.name,
-              role: VALID_CREDENTIALS.role
+              email: validUser.email,
+              name: validUser.name,
+              role: validUser.role,
+              userId: validUser.userId
             }
           });
           return true;

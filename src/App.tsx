@@ -14,14 +14,15 @@ const queryClient = new QueryClient();
 
 // Protected Route component with Firebase initialization
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const { initializeFirebase, isInitialized } = useClientStore();
   
   useEffect(() => {
-    if (isAuthenticated && !isInitialized) {
-      initializeFirebase();
+    if (isAuthenticated && !isInitialized && user) {
+      // Pass user's ID to initialize user-specific data collections
+      initializeFirebase(user.userId);
     }
-  }, [isAuthenticated, isInitialized, initializeFirebase]);
+  }, [isAuthenticated, isInitialized, initializeFirebase, user]);
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
