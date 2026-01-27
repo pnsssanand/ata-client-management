@@ -40,8 +40,11 @@ export const useAuthStore = create<AuthStore>()(
       user: null,
 
       login: (email: string, password: string) => {
+        const trimmedEmail = email.trim().toLowerCase();
+        const trimmedPassword = password.trim();
+        
         const validUser = VALID_USERS.find(
-          user => user.email === email && user.password === password
+          user => user.email.toLowerCase() === trimmedEmail && user.password === trimmedPassword
         );
         
         if (validUser) {
