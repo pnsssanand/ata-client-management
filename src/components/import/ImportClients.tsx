@@ -1,59 +1,104 @@
 import { useState, useRef } from 'react';
-import { Upload, FileSpreadsheet, Clipboard, Check, AlertCircle, X } from 'lucide-react';
+import { Upload, FileSpreadsheet, Clipboard, Check, AlertCircle, X, Smartphone } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useClientStore } from '@/stores/clientStore';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 
-const MAX_IMPORT_LIMIT = 500;
+// Mobile users can upload up to 2000 contacts, desktop limited to 500 for paste
+const MAX_MOBILE_IMPORT_LIMIT = 2000;
+const MAX_PASTE_IMPORT_LIMIT = 500;
+
+// Normalize phone number for comparison (remove all non-digit characters except +)
+const normalizePhone = (phone: string): string => {
+  return phone.replace(/[^0-9+]/g, '').replace(/^\+?91/, '').replace(/^0+/, '');
+};
 
 export function ImportClients() {
   const [pasteData, setPasteData] = useState('');
   const [importing, setImporting] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [importStats, setImportStats] = useState<{
+    imported: number;
+    duplicatesInFile: number;
+    duplicatesExisting: number;
+    invalid: number;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { addClient } = useClientStore();
+  const { addClient, clients } = useClientStore();
+  const isMobile = useIsMobile();
 
-  const processImportData = async (data: { name: string; phone: string }[]) => {
+  // Get all existing phone numbers for duplicate detection
+  const existingPhones = new Set(clients.map(c => normalizePhone(c.phone)));
+
+  const processImportData = async (data: { name: string; phone: string }[], maxLimit: number) => {
     if (data.length === 0) {
       toast.error('No valid entries found');
       return;
     }
 
-    if (data.length > MAX_IMPORT_LIMIT) {
-      toast.error(`Maximum ${MAX_IMPORT_LIMIT} entries allowed at a time`, {
+    if (data.length > maxLimit) {
+      toast.error(`Maximum ${maxLimit} entries allowed at a time`, {
         description: `You have ${data.length} entries. Please reduce the number of entries.`
       });
       return;
     }
 
     setImporting(true);
+    setImportStats(null);
+    
     let imported = 0;
-    let skipped = 0;
+    let duplicatesInFile = 0;
+    let duplicatesExisting = 0;
+    let invalid = 0;
+
+    // Track phones seen in this import batch to detect duplicates within the file
+    const seenPhonesInBatch = new Set<string>();
 
     for (const entry of data) {
-      const phone = entry.phone.replace(/[^0-9+]/g, '');
+      const rawPhone = entry.phone.replace(/[^0-9+]/g, '');
+      const normalizedPhone = normalizePhone(entry.phone);
       
-      if (phone.length >= 10) {
-        try {
-          await addClient({
-            name: entry.name || phone,
-            phone: entry.phone,
-            status: 'New Lead',
-            priority: 'Medium',
-            followUpRequired: true,
-          });
-          imported++;
-        } catch (error) {
-          console.error('Error adding client:', error);
-          skipped++;
-        }
-      } else {
-        skipped++;
+      // Check if phone number is valid (at least 10 digits)
+      if (rawPhone.length < 10) {
+        invalid++;
+        continue;
+      }
+
+      // Check for duplicate within the same import file
+      if (seenPhonesInBatch.has(normalizedPhone)) {
+        duplicatesInFile++;
+        continue;
+      }
+
+      // Check for duplicate with existing clients
+      if (existingPhones.has(normalizedPhone)) {
+        duplicatesExisting++;
+        continue;
+      }
+
+      // Add to seen phones for this batch
+      seenPhonesInBatch.add(normalizedPhone);
+
+      try {
+        await addClient({
+          name: entry.name || rawPhone,
+          phone: entry.phone,
+          status: 'New Lead',
+          priority: 'Medium',
+          followUpRequired: true,
+        });
+        imported++;
+        // Also add to existing phones set to prevent duplicates if user imports again
+        existingPhones.add(normalizedPhone);
+      } catch (error) {
+        console.error('Error adding client:', error);
+        invalid++;
       }
     }
 
@@ -63,13 +108,20 @@ export function ImportClients() {
       fileInputRef.current.value = '';
     }
 
+    const totalSkipped = duplicatesInFile + duplicatesExisting + invalid;
+    setImportStats({ imported, duplicatesInFile, duplicatesExisting, invalid });
+
     if (imported > 0) {
       toast.success(`Successfully imported ${imported} clients!`, {
-        description: skipped > 0 ? `${skipped} entries were skipped due to invalid phone numbers.` : undefined
+        description: totalSkipped > 0 
+          ? `${totalSkipped} entries skipped (${duplicatesExisting} existing, ${duplicatesInFile} duplicates in file, ${invalid} invalid)`
+          : undefined
       });
     } else {
-      toast.error('No valid entries found', {
-        description: 'Please ensure phone numbers have at least 10 digits'
+      toast.error('No new clients imported', {
+        description: totalSkipped > 0
+          ? `All entries were skipped: ${duplicatesExisting} already exist, ${duplicatesInFile} duplicates in file, ${invalid} invalid`
+          : 'Please ensure phone numbers have at least 10 digits'
       });
     }
   };
@@ -123,6 +175,7 @@ export function ImportClients() {
     if (!file) return;
 
     setUploadedFileName(file.name);
+    setImportStats(null);
 
     try {
       const arrayBuffer = await file.arrayBuffer();
@@ -137,7 +190,8 @@ export function ImportClients() {
         return;
       }
 
-      await processImportData(data);
+      // Use mobile limit for file uploads (2000), since this is the main mobile upload feature
+      await processImportData(data, MAX_MOBILE_IMPORT_LIMIT);
     } catch (error) {
       console.error('Error parsing file:', error);
       toast.error('Error reading file', {
@@ -156,208 +210,243 @@ export function ImportClients() {
     // Parse pasted data (expecting: Name (optional), Phone - one per line)
     const lines = pasteData.trim().split('\n').filter(l => l.trim());
     
-    // Check for 500 limit
-    if (lines.length > MAX_IMPORT_LIMIT) {
-      toast.error(`Maximum ${MAX_IMPORT_LIMIT} entries allowed at a time`, {
-        description: `You have ${lines.length} entries. Please reduce the number of entries.`
+    // Check for paste limit
+    if (lines.length > MAX_PASTE_IMPORT_LIMIT) {
+      toast.error(`Maximum ${MAX_PASTE_IMPORT_LIMIT} entries allowed for paste import`, {
+        description: `You have ${lines.length} entries. Please use file upload for larger imports (up to ${MAX_MOBILE_IMPORT_LIMIT}).`
       });
       return;
     }
 
-    setImporting(true);
+    setImportStats(null);
 
-    let imported = 0;
-    let skipped = 0;
-
-    // Process clients sequentially to avoid ID collisions
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+    // Parse pasted data into the same format as Excel data
+    const parsedData: { name: string; phone: string }[] = [];
+    
+    for (const line of lines) {
       const parts = line.split(/[,\t]/).map(p => p.trim());
       
-      // Check if it's just a phone number or name + phone
       let name = '';
       let phone = '';
       
       if (parts.length === 1) {
-        // Only phone number provided
-        phone = parts[0].replace(/[^0-9+]/g, '');
-        name = phone; // Use phone as name if no name provided
+        phone = parts[0];
+        name = phone;
       } else if (parts.length >= 2) {
-        // Name and phone provided
-        name = parts[0] || parts[1].replace(/[^0-9+]/g, '');
-        phone = parts[1].replace(/[^0-9+]/g, '');
+        name = parts[0] || parts[1];
+        phone = parts[1];
       }
       
-      // Validate phone number (basic check - at least 10 digits)
-      if (phone.length >= 10) {
-        try {
-          await addClient({
-            name: name || phone,
-            phone: parts.length >= 2 ? parts[1] : parts[0],
-            status: 'New Lead',
-            priority: 'Medium',
-            followUpRequired: true,
-          });
-          imported++;
-        } catch (error) {
-          console.error('Error adding client:', error);
-          skipped++;
-        }
-      } else {
-        skipped++;
+      if (phone) {
+        parsedData.push({ name, phone });
       }
     }
 
-    setImporting(false);
+    await processImportData(parsedData, MAX_PASTE_IMPORT_LIMIT);
     setPasteData('');
-    
-    if (imported > 0) {
-      toast.success(`Successfully imported ${imported} clients!`, {
-        description: skipped > 0 ? `${skipped} entries were skipped due to invalid phone numbers.` : undefined
-      });
-    } else {
-      toast.error('No valid entries found', {
-        description: 'Please ensure phone numbers have at least 10 digits'
-      });
-    }
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      {/* File Upload */}
-      <Card className="border-border/50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5 text-primary" />
-            Upload File
-          </CardTitle>
-          <CardDescription>
-            Import clients from Excel (.xlsx) or CSV files
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="border-2 border-dashed border-border rounded-xl p-8 text-center hover:border-primary/50 transition-colors">
-            <input
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              onChange={handleFileUpload}
-              className="hidden"
-              id="file-upload"
-              ref={fileInputRef}
-              disabled={importing}
-            />
-            <label htmlFor="file-upload" className={cn("cursor-pointer", importing && "pointer-events-none opacity-50")}>
-              {importing ? (
-                <>
-                  <div className="h-12 w-12 mx-auto text-primary mb-4 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-                  <p className="text-foreground font-medium mb-1">
-                    Importing clients...
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Please wait while we process your file
-                  </p>
-                </>
-              ) : uploadedFileName ? (
-                <>
-                  <FileSpreadsheet className="h-12 w-12 mx-auto text-primary mb-4" />
-                  <p className="text-foreground font-medium mb-1">
-                    {uploadedFileName}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Click to upload a different file
-                  </p>
-                </>
-              ) : (
-                <>
-                  <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-foreground font-medium mb-1">
-                    Click to upload or drag and drop
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Supports .xlsx, .xls, and .csv files
-                  </p>
-                </>
-              )}
-            </label>
-          </div>
-
-          <div className="mt-4 p-4 bg-muted/30 rounded-lg">
-            <p className="text-sm font-medium text-foreground mb-2">Expected columns:</p>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">Name (optional)</Badge>
-              <Badge variant="outline">Phone *</Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Paste Import */}
-      <Card className="border-border/50">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clipboard className="h-5 w-5 text-primary" />
-            Paste Data
-          </CardTitle>
-          <CardDescription>
-            Copy and paste client data directly
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Textarea
-            placeholder={`Paste your data here...\n\nFormat: Name (optional), Phone\nExamples:\nJohn Doe, +91 98765 43210\n+91 87654 32109`}
-            value={pasteData}
-            onChange={(e) => setPasteData(e.target.value)}
-            className="min-h-[180px] bg-background"
-          />
-
-          <div className="flex items-center justify-between">
-            <p className={cn("text-sm", 
-              pasteData.trim().split('\n').filter(l => l.trim()).length > MAX_IMPORT_LIMIT 
-                ? "text-destructive font-medium" 
-                : "text-muted-foreground"
-            )}>
-              {pasteData.trim().split('\n').filter(l => l.trim()).length} entries detected
-              {pasteData.trim().split('\n').filter(l => l.trim()).length > MAX_IMPORT_LIMIT && ` (max ${MAX_IMPORT_LIMIT})`}
-            </p>
-            <div className="flex gap-2">
-              {pasteData && (
-                <Button variant="ghost" size="sm" onClick={() => setPasteData('')}>
-                  <X className="h-4 w-4 mr-1" />
-                  Clear
-                </Button>
-              )}
-              <Button 
-                onClick={handlePasteImport} 
-                disabled={!pasteData.trim() || importing}
-              >
-                {importing ? (
-                  <>Importing...</>
-                ) : (
-                  <>
-                    <Check className="h-4 w-4 mr-2" />
-                    Import Clients
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-
-          <div className="p-4 bg-chart-1/10 rounded-lg border border-chart-1/20">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 text-chart-1 mt-0.5" />
-              <div className="text-sm">
-                <p className="font-medium text-foreground">Tips</p>
-                <ul className="text-muted-foreground mt-1 space-y-1">
-                  <li>• One client per line</li>
-                  <li>• Only phone number is required</li>
-                  <li>• Use comma or tab to separate name and phone</li>
-                  <li>• Maximum {MAX_IMPORT_LIMIT} entries per import</li>
-                </ul>
+    <div className="space-y-6">
+      {/* Import Stats Summary - Shows after import */}
+      {importStats && (
+        <Card className="border-border/50 bg-muted/20">
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="text-center p-3 bg-green-500/10 rounded-lg border border-green-500/20">
+                <p className="text-2xl font-bold text-green-600">{importStats.imported}</p>
+                <p className="text-xs text-muted-foreground">Imported</p>
+              </div>
+              <div className="text-center p-3 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                <p className="text-2xl font-bold text-yellow-600">{importStats.duplicatesExisting}</p>
+                <p className="text-xs text-muted-foreground">Already Exist</p>
+              </div>
+              <div className="text-center p-3 bg-orange-500/10 rounded-lg border border-orange-500/20">
+                <p className="text-2xl font-bold text-orange-600">{importStats.duplicatesInFile}</p>
+                <p className="text-xs text-muted-foreground">Duplicates in File</p>
+              </div>
+              <div className="text-center p-3 bg-red-500/10 rounded-lg border border-red-500/20">
+                <p className="text-2xl font-bold text-red-600">{importStats.invalid}</p>
+                <p className="text-xs text-muted-foreground">Invalid</p>
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="w-full mt-4"
+              onClick={() => setImportStats(null)}
+            >
+              <X className="h-4 w-4 mr-1" />
+              Dismiss
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Mobile Upload Banner */}
+      {isMobile && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-full">
+                <Smartphone className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="font-medium text-foreground text-sm">Mobile Upload</p>
+                <p className="text-xs text-muted-foreground">
+                  Upload up to {MAX_MOBILE_IMPORT_LIMIT.toLocaleString()} contacts at once via Excel file
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* File Upload - Primary for Mobile */}
+        <Card className={cn("border-border/50", isMobile && "order-first")}>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-primary" />
+              Upload Excel File
+              {isMobile && <Badge variant="secondary" className="ml-2">Recommended</Badge>}
+            </CardTitle>
+            <CardDescription>
+              Import up to {MAX_MOBILE_IMPORT_LIMIT.toLocaleString()} clients from Excel (.xlsx) or CSV files
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className={cn(
+              "border-2 border-dashed border-border rounded-xl text-center hover:border-primary/50 transition-colors",
+              isMobile ? "p-6" : "p-8"
+            )}>
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={handleFileUpload}
+                className="hidden"
+                id="file-upload"
+                ref={fileInputRef}
+                disabled={importing}
+              />
+              <label htmlFor="file-upload" className={cn("cursor-pointer block", importing && "pointer-events-none opacity-50")}>
+                {importing ? (
+                  <>
+                    <div className="h-12 w-12 mx-auto text-primary mb-4 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                    <p className="text-foreground font-medium mb-1">
+                      Importing clients...
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Please wait while we process your file
+                    </p>
+                  </>
+                ) : uploadedFileName ? (
+                  <>
+                    <FileSpreadsheet className="h-12 w-12 mx-auto text-primary mb-4" />
+                    <p className="text-foreground font-medium mb-1">
+                      {uploadedFileName}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Click to upload a different file
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <Upload className={cn("mx-auto text-muted-foreground mb-4", isMobile ? "h-10 w-10" : "h-12 w-12")} />
+                    <p className="text-foreground font-medium mb-1">
+                      {isMobile ? "Tap to select file" : "Click to upload or drag and drop"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Supports .xlsx, .xls, and .csv files
+                    </p>
+                  </>
+                )}
+              </label>
+            </div>
+
+            <div className="mt-4 p-4 bg-muted/30 rounded-lg">
+              <p className="text-sm font-medium text-foreground mb-2">Expected columns:</p>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline">Name (optional)</Badge>
+                <Badge variant="outline">Phone *</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Duplicate contacts (same phone number) will be automatically skipped
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Paste Import */}
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clipboard className="h-5 w-5 text-primary" />
+              Paste Data
+            </CardTitle>
+            <CardDescription>
+              Copy and paste client data directly (max {MAX_PASTE_IMPORT_LIMIT})
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Textarea
+              placeholder={`Paste your data here...\n\nFormat: Name (optional), Phone\nExamples:\nJohn Doe, +91 98765 43210\n+91 87654 32109`}
+              value={pasteData}
+              onChange={(e) => setPasteData(e.target.value)}
+              className={cn("bg-background", isMobile ? "min-h-[140px]" : "min-h-[180px]")}
+            />
+
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <p className={cn("text-sm", 
+                pasteData.trim().split('\n').filter(l => l.trim()).length > MAX_PASTE_IMPORT_LIMIT 
+                  ? "text-destructive font-medium" 
+                  : "text-muted-foreground"
+              )}>
+                {pasteData.trim().split('\n').filter(l => l.trim()).length} entries detected
+                {pasteData.trim().split('\n').filter(l => l.trim()).length > MAX_PASTE_IMPORT_LIMIT && ` (max ${MAX_PASTE_IMPORT_LIMIT})`}
+              </p>
+              <div className="flex gap-2">
+                {pasteData && (
+                  <Button variant="ghost" size="sm" onClick={() => setPasteData('')}>
+                    <X className="h-4 w-4 mr-1" />
+                    Clear
+                  </Button>
+                )}
+                <Button 
+                  onClick={handlePasteImport} 
+                  disabled={!pasteData.trim() || importing}
+                  size={isMobile ? "sm" : "default"}
+                >
+                  {importing ? (
+                    <>Importing...</>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4 mr-2" />
+                      Import
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <div className="p-4 bg-chart-1/10 rounded-lg border border-chart-1/20">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 text-chart-1 mt-0.5 shrink-0" />
+                <div className="text-sm">
+                  <p className="font-medium text-foreground">Tips</p>
+                  <ul className="text-muted-foreground mt-1 space-y-1">
+                    <li>• One client per line</li>
+                    <li>• Only phone number is required</li>
+                    <li>• Use comma or tab to separate name and phone</li>
+                    <li>• Maximum {MAX_PASTE_IMPORT_LIMIT} entries per paste</li>
+                    <li>• Duplicate phone numbers are automatically skipped</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
