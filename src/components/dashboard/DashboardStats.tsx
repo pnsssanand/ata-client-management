@@ -2,6 +2,7 @@ import { Users, Phone, TrendingUp, Clock, ArrowUpRight, ArrowDownRight, PhoneOff
 import { Card, CardContent } from '@/components/ui/card';
 import { useClientStore } from '@/stores/clientStore';
 import { cn } from '@/lib/utils';
+import { memo, useMemo } from 'react';
 
 interface StatCardProps {
   title: string;
@@ -11,7 +12,8 @@ interface StatCardProps {
   iconBg: string;
 }
 
-function StatCard({ title, value, change, icon, iconBg }: StatCardProps) {
+// Memoized stat card for better performance
+const StatCard = memo(function StatCard({ title, value, change, icon, iconBg }: StatCardProps) {
   return (
     <Card className="hover:shadow-md transition-all duration-300 border-border/50 hover:border-primary/20">
       <CardContent className="p-4 lg:p-6">
@@ -41,7 +43,7 @@ function StatCard({ title, value, change, icon, iconBg }: StatCardProps) {
       </CardContent>
     </Card>
   );
-}
+});
 
 // Icon and color mapping for different lead statuses
 const STATUS_CONFIG: Record<string, { icon: React.ReactNode; iconBg: string }> = {
@@ -100,25 +102,35 @@ export function DashboardStats() {
   const clients = useClientStore((state) => state.clients);
   const dropdowns = useClientStore((state) => state.dropdowns);
 
-  const totalClients = clients.length;
+  // Memoize all computed values to prevent recalculation on every render
+  const { totalClients, statusStats, statusCounts, statusOptions } = useMemo(() => {
+    const total = clients.length;
+    
+    // Get lead status dropdown options
+    const leadStatusDropdown = dropdowns.find(d => d.name === 'Lead Status');
+    const options = leadStatusDropdown?.options || [];
 
-  // Get lead status dropdown options
-  const leadStatusDropdown = dropdowns.find(d => d.name === 'Lead Status');
-  const statusOptions = leadStatusDropdown?.options || [];
+    // Count clients per status
+    const counts = clients.reduce((acc, client) => {
+      const status = client.status || 'Unknown';
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
 
-  // Count clients per status
-  const statusCounts = clients.reduce((acc, client) => {
-    const status = client.status || 'Unknown';
-    acc[status] = (acc[status] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
+    // Create stats for each lead status option
+    const stats = options.map(status => ({
+      status,
+      count: counts[status] || 0,
+      ...getStatusConfig(status)
+    }));
 
-  // Create stats for each lead status option
-  const statusStats = statusOptions.map(status => ({
-    status,
-    count: statusCounts[status] || 0,
-    ...getStatusConfig(status)
-  }));
+    return {
+      totalClients: total,
+      statusStats: stats,
+      statusCounts: counts,
+      statusOptions: options
+    };
+  }, [clients, dropdowns]);
 
   return (
     <div className="space-y-4">

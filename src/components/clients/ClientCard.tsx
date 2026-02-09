@@ -32,21 +32,21 @@ const ClientDropdown = memo(({
   onUpdate?: () => void;
 }) => {
   const [localValue, setLocalValue] = useState(currentValue);
-  const [isOpen, setIsOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   
-  // Always sync with prop value for real-time updates
+  // Sync with prop value only when it changes from external source
   useEffect(() => {
-    setLocalValue(currentValue);
-  }, [currentValue]);
+    if (!isUpdating) {
+      setLocalValue(currentValue);
+    }
+  }, [currentValue, isUpdating]);
 
   const handleChange = useCallback(async (value: string) => {
-    if (isUpdating) return;
-    setIsUpdating(true);
+    if (isUpdating || value === localValue) return;
     
     // Immediately update local state for responsive UI
     setLocalValue(value);
-    setIsOpen(false);
+    setIsUpdating(true);
     
     // Propagate to store
     try {
@@ -67,7 +67,7 @@ const ClientDropdown = memo(({
     if (onUpdate) {
       setTimeout(() => onUpdate(), 300);
     }
-  }, [clientId, dropdown.name, onValueChange, onUpdate, currentValue, isUpdating]);
+  }, [clientId, dropdown.name, onValueChange, currentValue, isUpdating, localValue]);
 
   return (
     <div className="space-y-1.5">
@@ -75,25 +75,29 @@ const ClientDropdown = memo(({
       <Select
         value={localValue || ''}
         onValueChange={handleChange}
-        open={isOpen}
-        onOpenChange={setIsOpen}
         disabled={isUpdating}
       >
-        <SelectTrigger className={cn("bg-card h-11 md:h-10 transition-opacity", isUpdating && "opacity-70")}>
+        <SelectTrigger className={cn(
+          "bg-card h-11 md:h-10 transition-all duration-150",
+          isUpdating && "opacity-60 pointer-events-none"
+        )}>
           <SelectValue placeholder={`Select ${dropdown.name}`} />
+          {isUpdating && (
+            <span className="absolute right-8 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          )}
         </SelectTrigger>
         <SelectContent 
           position="popper" 
           side="bottom" 
           align="start"
-          className="max-h-[50vh] overflow-y-auto z-[100]"
+          className="max-h-[50vh] overflow-y-auto"
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
           {dropdown.options.map((option) => (
             <SelectItem 
               key={option} 
               value={option}
-              className="py-3 md:py-2 cursor-pointer"
+              className="py-2.5 md:py-2"
             >
               {option}
             </SelectItem>
@@ -101,6 +105,14 @@ const ClientDropdown = memo(({
         </SelectContent>
       </Select>
     </div>
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparison for memo - only re-render when these change
+  return (
+    prevProps.clientId === nextProps.clientId &&
+    prevProps.currentValue === nextProps.currentValue &&
+    prevProps.dropdown.id === nextProps.dropdown.id &&
+    prevProps.dropdown.options.length === nextProps.dropdown.options.length
   );
 });
 
@@ -146,12 +158,24 @@ export function ClientCard({ client }: ClientCardProps) {
   }, [client.status, optimisticStatus]);
 
   const handleCall = () => {
-    window.location.href = `tel:${client.phone.replace(/\s/g, '')}`;
+    // Clean phone number - remove spaces and keep the + for international format
+    const cleanPhone = client.phone.replace(/[\s\-\(\)]/g, '');
+    window.location.href = `tel:${cleanPhone}`;
   };
 
   const handleWhatsApp = () => {
-    const phone = client.phone.replace(/\s/g, '').replace('+', '');
-    window.open(`https://wa.me/${phone}`, '_blank');
+    // Clean phone number for WhatsApp - remove spaces, dashes, parentheses, and + sign
+    const cleanPhone = client.phone.replace(/[\s\-\(\)\+]/g, '');
+    // Use wa.me deep link format
+    const waUrl = `https://wa.me/${cleanPhone}`;
+    window.open(waUrl, '_blank');
+  };
+
+  // Handler for clicking phone number - opens WhatsApp
+  const handlePhoneClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handleWhatsApp();
   };
 
   const handleAddNote = async () => {
@@ -213,10 +237,14 @@ export function ClientCard({ client }: ClientCardProps) {
                 </div>
                 
                 <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1.5">
+                  <button 
+                    onClick={handlePhoneClick}
+                    className="flex items-center gap-1.5 hover:text-emerald-600 transition-colors cursor-pointer touch-manipulation"
+                    title="Open WhatsApp"
+                  >
                     <Phone className="h-3.5 w-3.5" />
-                    {client.phone}
-                  </span>
+                    <span className="underline decoration-dotted underline-offset-2">{client.phone}</span>
+                  </button>
                   {client.company && (
                     <span className="flex items-center gap-1.5 hidden sm:flex">
                       <Building className="h-3.5 w-3.5" />

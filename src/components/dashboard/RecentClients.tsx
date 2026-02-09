@@ -62,7 +62,11 @@ export function RecentClients() {
                   variant="ghost" 
                   size="icon"
                   className="h-7 w-7 lg:h-8 lg:w-8 hover:bg-primary/10 hover:text-primary"
-                  onClick={() => window.location.href = `tel:${client.phone.replace(/\s/g, '')}`}
+                  onClick={() => {
+                    const cleanPhone = client.phone.replace(/[\s\-\(\)]/g, '');
+                    window.location.href = `tel:${cleanPhone}`;
+                  }}
+                  title="Call"
                 >
                   <Phone className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                 </Button>
@@ -71,9 +75,10 @@ export function RecentClients() {
                   size="icon"
                   className="h-7 w-7 lg:h-8 lg:w-8 hover:bg-emerald-500/10 hover:text-emerald-600"
                   onClick={() => {
-                    const phone = client.phone.replace(/\s/g, '').replace('+', '');
-                    window.open(`https://wa.me/${phone}`, '_blank');
+                    const cleanPhone = client.phone.replace(/[\s\-\(\)\+]/g, '');
+                    window.open(`https://wa.me/${cleanPhone}`, '_blank');
                   }}
+                  title="WhatsApp"
                 >
                   <MessageCircle className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
                 </Button>

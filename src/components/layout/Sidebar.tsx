@@ -7,7 +7,8 @@ import {
   Settings, 
   LogOut,
   ChevronLeft,
-  X
+  X,
+  UserCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/authStore';
@@ -27,6 +28,7 @@ interface SidebarProps {
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'clients', label: 'Clients', icon: Users },
+  { id: 'intern', label: 'Renuka Login', icon: UserCheck },
   { id: 'import', label: 'Import Clients', icon: Upload },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];

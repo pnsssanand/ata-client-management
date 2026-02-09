@@ -1,12 +1,15 @@
 import { create } from 'zustand';
-import { Client, DropdownField, User } from '@/types/client';
+import { Client, DropdownField, User, InternSession, LeadStatusSnapshot } from '@/types/client';
 import { 
   saveClient, 
   deleteClientFromFirestore, 
   subscribeToClients,
   saveDropdown,
   deleteDropdownFromFirestore,
-  subscribeToDropdowns
+  subscribeToDropdowns,
+  saveInternSession,
+  deleteInternSession,
+  subscribeToInternSessions
 } from '@/lib/firestore';
 
 // Debounce utility for optimizing frequent updates
@@ -27,6 +30,8 @@ const debouncedSave = (key: string, fn: () => Promise<void>, delay: number = 300
 interface ClientStore {
   clients: Client[];
   dropdowns: DropdownField[];
+  internSessions: InternSession[];
+  activeInternSession: InternSession | null;
   searchQuery: string;
   filterStatus: string;
   filterPriority: string;
@@ -39,6 +44,7 @@ interface ClientStore {
   lastSyncTime: Date | null;
   unsubscribeClients: (() => void) | null;
   unsubscribeDropdowns: (() => void) | null;
+  unsubscribeInternSessions: (() => void) | null;
   setSearchQuery: (query: string) => void;
   setFilterStatus: (status: string) => void;
   setFilterPriority: (priority: string) => void;
@@ -59,11 +65,18 @@ interface ClientStore {
   filteredClients: () => Client[];
   initializeFirebase: (userId?: string) => void;
   cleanup: () => void;
+  // Intern session methods
+  startInternSession: (internName: string, loginTime: string) => Promise<void>;
+  endInternSession: (sessionId: string, logoutTime: string) => Promise<void>;
+  deleteInternSessionRecord: (sessionId: string) => Promise<void>;
+  getLeadStatusSnapshot: () => LeadStatusSnapshot[];
 }
 
 export const useClientStore = create<ClientStore>()((set, get) => ({
   clients: [],
   dropdowns: [],
+  internSessions: [],
+  activeInternSession: null,
   searchQuery: '',
   filterStatus: 'all',
   filterPriority: 'all',
@@ -76,6 +89,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   lastSyncTime: null,
   unsubscribeClients: null,
   unsubscribeDropdowns: null,
+  unsubscribeInternSessions: null,
   
   setSearchQuery: (query) => set({ searchQuery: query }),
   setFilterStatus: (status) => set({ filterStatus: status }),
@@ -83,7 +97,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   setFilterCallOutcome: (callOutcome) => set({ filterCallOutcome: callOutcome }),
   
   initializeFirebase: (userId?: string) => {
-    const { isInitialized, unsubscribeClients, unsubscribeDropdowns } = get();
+    const { isInitialized, unsubscribeClients, unsubscribeDropdowns, unsubscribeInternSessions } = get();
     
     if (isInitialized) return;
     
@@ -93,6 +107,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     // Clean up existing subscriptions
     if (unsubscribeClients) unsubscribeClients();
     if (unsubscribeDropdowns) unsubscribeDropdowns();
+    if (unsubscribeInternSessions) unsubscribeInternSessions();
     
     // Subscribe to clients (pass userId to use user-specific collection)
     const clientsUnsub = subscribeToClients(
@@ -151,26 +166,43 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       userId
     );
     
+    // Subscribe to intern sessions
+    const internSessionsUnsub = subscribeToInternSessions(
+      (sessions) => {
+        const activeSession = sessions.find(s => s.isActive);
+        set({ internSessions: sessions, activeInternSession: activeSession || null });
+      },
+      (error) => {
+        console.error('Intern sessions subscription error:', error);
+      },
+      userId
+    );
+    
     set({ 
       isInitialized: true, 
       unsubscribeClients: clientsUnsub,
-      unsubscribeDropdowns: dropdownsUnsub
+      unsubscribeDropdowns: dropdownsUnsub,
+      unsubscribeInternSessions: internSessionsUnsub
     });
   },
   
   cleanup: () => {
-    const { unsubscribeClients, unsubscribeDropdowns } = get();
+    const { unsubscribeClients, unsubscribeDropdowns, unsubscribeInternSessions } = get();
     if (unsubscribeClients) unsubscribeClients();
     if (unsubscribeDropdowns) unsubscribeDropdowns();
+    if (unsubscribeInternSessions) unsubscribeInternSessions();
     set({ 
       clients: [],
       dropdowns: [],
+      internSessions: [],
+      activeInternSession: null,
       currentUserId: null,
       isInitialized: false, 
       isLoading: true,
       isSynced: false,
       unsubscribeClients: null, 
-      unsubscribeDropdowns: null 
+      unsubscribeDropdowns: null,
+      unsubscribeInternSessions: null
     });
   },
   
@@ -529,5 +561,154 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       
       return matchesSearch && matchesStatus && matchesPriority && matchesCallOutcome;
     });
+  },
+
+  // Intern session methods
+  getLeadStatusSnapshot: () => {
+    const { clients, dropdowns } = get();
+    const leadStatusDropdown = dropdowns.find(d => d.name === 'Lead Status');
+    const statusOptions = leadStatusDropdown?.options || [];
+    
+    // Count clients per status
+    const statusCounts = clients.reduce((acc, client) => {
+      const status = client.status || 'Unknown';
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    // Create snapshot with all status options
+    return statusOptions.map(status => ({
+      status,
+      count: statusCounts[status] || 0
+    }));
+  },
+
+  startInternSession: async (internName, loginTime) => {
+    const { currentUserId, getLeadStatusSnapshot, internSessions } = get();
+    
+    // Check if there's already an active session
+    const existingActive = internSessions.find(s => s.isActive);
+    if (existingActive) {
+      throw new Error('There is already an active session. Please end the current session first.');
+    }
+
+    const sessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const entryLeadStatuses = getLeadStatusSnapshot();
+    
+    const newSession: InternSession = {
+      id: sessionId,
+      internName,
+      date: new Date(),
+      loginTime,
+      entryLeadStatuses,
+      isActive: true,
+      createdAt: new Date()
+    };
+    
+    // Optimistically update local state
+    set((state) => ({ 
+      internSessions: [newSession, ...state.internSessions],
+      activeInternSession: newSession
+    }));
+    
+    try {
+      await saveInternSession(newSession, currentUserId || undefined);
+    } catch (error) {
+      console.error('Error starting intern session:', error);
+      // Rollback
+      set((state) => ({
+        internSessions: state.internSessions.filter(s => s.id !== sessionId),
+        activeInternSession: null
+      }));
+      throw error;
+    }
+  },
+
+  endInternSession: async (sessionId, logoutTime) => {
+    const { internSessions, currentUserId, getLeadStatusSnapshot } = get();
+    const session = internSessions.find(s => s.id === sessionId);
+    if (!session) return;
+    
+    const exitLeadStatuses = getLeadStatusSnapshot();
+    
+    // Calculate conversions (changes in lead status counts)
+    const conversions: Record<string, number> = {};
+    let totalCallsMade = 0;
+    
+    session.entryLeadStatuses.forEach(entry => {
+      const exitStatus = exitLeadStatuses.find(e => e.status === entry.status);
+      const exitCount = exitStatus?.count || 0;
+      const change = exitCount - entry.count;
+      conversions[entry.status] = change;
+      // Total calls made is the sum of absolute changes (leads moved)
+      if (change !== 0) {
+        totalCallsMade += Math.abs(change);
+      }
+    });
+    
+    // Also check for any new statuses at exit that weren't in entry
+    exitLeadStatuses.forEach(exit => {
+      if (!conversions.hasOwnProperty(exit.status)) {
+        conversions[exit.status] = exit.count;
+        totalCallsMade += Math.abs(exit.count);
+      }
+    });
+    
+    // Total calls made is approximately half of total movements (since each call moves a lead from one status to another)
+    totalCallsMade = Math.ceil(totalCallsMade / 2);
+    
+    const updatedSession: InternSession = {
+      ...session,
+      logoutTime,
+      exitLeadStatuses,
+      conversions,
+      totalCallsMade,
+      isActive: false
+    };
+    
+    // Optimistically update
+    set((state) => ({
+      internSessions: state.internSessions.map(s => s.id === sessionId ? updatedSession : s),
+      activeInternSession: null
+    }));
+    
+    try {
+      await saveInternSession(updatedSession, currentUserId || undefined);
+    } catch (error) {
+      console.error('Error ending intern session:', error);
+      // Rollback
+      set((state) => ({
+        internSessions: state.internSessions.map(s => s.id === sessionId ? session : s),
+        activeInternSession: session
+      }));
+      throw error;
+    }
+  },
+
+  deleteInternSessionRecord: async (sessionId) => {
+    const { internSessions, currentUserId, activeInternSession } = get();
+    const session = internSessions.find(s => s.id === sessionId);
+    if (!session) return;
+    
+    // Don't allow deleting active sessions
+    if (session.isActive) {
+      throw new Error('Cannot delete an active session. Please end the session first.');
+    }
+    
+    // Optimistically update
+    set((state) => ({
+      internSessions: state.internSessions.filter(s => s.id !== sessionId)
+    }));
+    
+    try {
+      await deleteInternSession(sessionId, currentUserId || undefined);
+    } catch (error) {
+      console.error('Error deleting intern session:', error);
+      // Rollback
+      set((state) => ({
+        internSessions: [...state.internSessions, session]
+      }));
+      throw error;
+    }
   }
 }));

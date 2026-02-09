@@ -38,3 +38,23 @@ export interface User {
   role: 'admin' | 'staff';
   avatarUrl?: string;
 }
+
+// Intern Session for tracking Renuka's work sessions
+export interface LeadStatusSnapshot {
+  status: string;
+  count: number;
+}
+
+export interface InternSession {
+  id: string;
+  internName: string;
+  date: Date;
+  loginTime: string;
+  logoutTime?: string;
+  entryLeadStatuses: LeadStatusSnapshot[];
+  exitLeadStatuses?: LeadStatusSnapshot[];
+  totalCallsMade?: number;
+  conversions?: Record<string, number>; // status -> change count
+  isActive: boolean;
+  createdAt: Date;
+}

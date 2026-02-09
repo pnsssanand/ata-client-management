@@ -8,6 +8,7 @@ import { ClientCard } from '@/components/clients/ClientCard';
 import { ClientFilters } from '@/components/clients/ClientFilters';
 import { ImportClients } from '@/components/import/ImportClients';
 import { DropdownSettings } from '@/components/settings/DropdownSettings';
+import { InternTracker } from '@/components/intern/InternTracker';
 import { useClientStore } from '@/stores/clientStore';
 import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
@@ -30,6 +31,7 @@ import { cn } from '@/lib/utils';
 const pageTitles: Record<string, string> = {
   dashboard: 'Dashboard',
   clients: 'Client Management',
+  intern: 'Renuka Login',
   import: 'Import Clients',
   settings: 'Settings',
 };
@@ -229,6 +231,9 @@ const Index = () => {
 
           {/* Import Page */}
           {currentPage === 'import' && <ImportClients />}
+
+          {/* Intern Tracker Page */}
+          {currentPage === 'intern' && <InternTracker />}
 
           {/* Settings Page */}
           {currentPage === 'settings' && <DropdownSettings />}

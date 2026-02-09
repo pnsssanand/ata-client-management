@@ -9,15 +9,17 @@ import {
   DocumentData
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Client, DropdownField, Note } from '@/types/client';
+import { Client, DropdownField, Note, InternSession, LeadStatusSnapshot } from '@/types/client';
 
 // Helper to get user-specific collection path
 const getUserClientsCollection = (userId: string) => `users/${userId}/clients`;
 const getUserDropdownsCollection = (userId: string) => `users/${userId}/dropdowns`;
+const getUserInternSessionsCollection = (userId: string) => `users/${userId}/internSessions`;
 
 // Legacy collection references (for backward compatibility with existing data)
 const LEGACY_CLIENTS_COLLECTION = 'clients';
 const LEGACY_DROPDOWNS_COLLECTION = 'dropdowns';
+const LEGACY_INTERN_SESSIONS_COLLECTION = 'internSessions';
 
 // Legacy user ID - this user uses the old collection structure
 const LEGACY_USER_ID = 'anandtravelagency';
@@ -39,6 +41,15 @@ const getDropdownsCollectionPath = (userId?: string): string => {
   }
   // New users get user-specific collections
   return getUserDropdownsCollection(userId);
+};
+
+const getInternSessionsCollectionPath = (userId?: string): string => {
+  // If no userId or legacy user, use legacy collection
+  if (!userId || userId === LEGACY_USER_ID) {
+    return LEGACY_INTERN_SESSIONS_COLLECTION;
+  }
+  // New users get user-specific collections
+  return getUserInternSessionsCollection(userId);
 };
 
 // Convert Date to Firestore Timestamp
@@ -225,6 +236,81 @@ export const subscribeToDropdowns = (
     },
     (error) => {
       console.error('Error subscribing to dropdowns:', error);
+      onError?.(error);
+    }
+  );
+};
+
+// Intern Session operations
+
+// Convert InternSession to Firestore format
+const internSessionToFirestore = (session: InternSession): DocumentData => {
+  return {
+    id: session.id,
+    internName: session.internName,
+    date: dateToTimestamp(session.date),
+    loginTime: session.loginTime,
+    logoutTime: session.logoutTime || null,
+    entryLeadStatuses: session.entryLeadStatuses,
+    exitLeadStatuses: session.exitLeadStatuses || null,
+    totalCallsMade: session.totalCallsMade || null,
+    conversions: session.conversions || null,
+    isActive: session.isActive,
+    createdAt: dateToTimestamp(session.createdAt)
+  };
+};
+
+// Convert Firestore document to InternSession
+const firestoreToInternSession = (data: DocumentData): InternSession => {
+  return {
+    id: data.id,
+    internName: data.internName,
+    date: timestampToDate(data.date),
+    loginTime: data.loginTime,
+    logoutTime: data.logoutTime || undefined,
+    entryLeadStatuses: data.entryLeadStatuses || [],
+    exitLeadStatuses: data.exitLeadStatuses || undefined,
+    totalCallsMade: data.totalCallsMade || undefined,
+    conversions: data.conversions || undefined,
+    isActive: data.isActive ?? true,
+    createdAt: timestampToDate(data.createdAt)
+  };
+};
+
+export const saveInternSession = async (session: InternSession, userId?: string): Promise<void> => {
+  const collectionPath = getInternSessionsCollectionPath(userId);
+  const sessionRef = doc(db, collectionPath, session.id);
+  await setDoc(sessionRef, internSessionToFirestore(session));
+};
+
+export const deleteInternSession = async (sessionId: string, userId?: string): Promise<void> => {
+  const collectionPath = getInternSessionsCollectionPath(userId);
+  const sessionRef = doc(db, collectionPath, sessionId);
+  await deleteDoc(sessionRef);
+};
+
+// Subscribe to intern sessions collection
+export const subscribeToInternSessions = (
+  onSessionsChange: (sessions: InternSession[]) => void,
+  onError?: (error: Error) => void,
+  userId?: string
+) => {
+  const collectionPath = getInternSessionsCollectionPath(userId);
+  const sessionsRef = collection(db, collectionPath);
+  
+  return onSnapshot(
+    sessionsRef,
+    (snapshot) => {
+      const sessions: InternSession[] = [];
+      snapshot.forEach((doc) => {
+        sessions.push(firestoreToInternSession(doc.data()));
+      });
+      // Sort by date descending
+      sessions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      onSessionsChange(sessions);
+    },
+    (error) => {
+      console.error('Error subscribing to intern sessions:', error);
       onError?.(error);
     }
   );
