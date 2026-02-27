@@ -28,7 +28,7 @@ interface SidebarProps {
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'clients', label: 'Clients', icon: Users },
-  { id: 'intern', label: 'Renuka Login', icon: UserCheck },
+  { id: 'intern', label: 'Intern Login', icon: UserCheck },
   { id: 'import', label: 'Import Clients', icon: Upload },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];

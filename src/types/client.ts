@@ -39,7 +39,7 @@ export interface User {
   avatarUrl?: string;
 }
 
-// Intern Session for tracking Renuka's work sessions
+// Intern Session for tracking Intern's work sessions
 export interface LeadStatusSnapshot {
   status: string;
   count: number;

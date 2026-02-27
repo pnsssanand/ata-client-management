@@ -250,7 +250,7 @@ export function InternTracker() {
   const getLeadStatusSnapshot = useClientStore((state) => state.getLeadStatusSnapshot);
 
   // Form states
-  const [internName, setInternName] = useState('Renuka');
+  const [internName, setInternName] = useState('');
   const [loginTime, setLoginTime] = useState(getCurrentTime());
   const [logoutTime, setLogoutTime] = useState(getCurrentTime());
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -369,7 +369,7 @@ export function InternTracker() {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <User className="h-5 w-5 text-primary" />
-                Renuka Login
+                Intern Login
               </CardTitle>
               <CardDescription>
                 {activeInternSession 

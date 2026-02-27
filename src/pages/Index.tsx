@@ -31,7 +31,7 @@ import { cn } from '@/lib/utils';
 const pageTitles: Record<string, string> = {
   dashboard: 'Dashboard',
   clients: 'Client Management',
-  intern: 'Renuka Login',
+  intern: 'Intern Login',
   import: 'Import Clients',
   settings: 'Settings',
 };
