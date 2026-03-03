@@ -315,42 +315,42 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
 
   return (
     <Card className={cn(
-      "group transition-all duration-200 border-border/50 hover:border-primary/30 overflow-hidden rounded-xl",
-      "hover:shadow-lg hover:-translate-y-0.5",
+      "group transition-all duration-300 ease-out border-border/40 overflow-hidden rounded-2xl shadow-md",
+      "hover:shadow-2xl hover:-translate-y-1 hover:border-primary/40",
       "touch-manipulation",
-      isSelected && "ring-2 ring-primary/50 border-primary/50"
+      isSelected && "ring-2 ring-primary/60 border-primary/60 shadow-lg"
     )}>
       <CardContent className="p-0">
         {/* Main Content */}
-        <div className="p-3 sm:p-4 lg:p-5">
+        <div className="p-4 sm:p-5 lg:p-6">
           {/* Header Row */}
-          <div className="flex items-start justify-between gap-2 sm:gap-4 mb-3 sm:mb-4">
+          <div className="flex items-start justify-between gap-3 sm:gap-4 mb-4">
             {/* Client Info */}
-            <div className="flex items-start gap-2.5 sm:gap-3.5 flex-1 min-w-0">
-              <Avatar className="h-9 w-9 sm:h-11 sm:w-11 border-2 border-primary/10 shrink-0 ring-2 ring-background shadow-sm">
-                <AvatarFallback className="bg-gradient-to-br from-primary/80 to-primary text-primary-foreground font-semibold text-xs sm:text-sm">
+            <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
+              <Avatar className="h-11 w-11 sm:h-12 sm:w-12 border-2 border-primary/20 shrink-0 ring-2 ring-background shadow-lg group-hover:scale-105 transition-transform duration-300">
+                <AvatarFallback className="bg-gradient-to-br from-primary/90 to-primary text-primary-foreground font-bold text-sm">
                   {client.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-foreground truncate text-sm sm:text-base leading-tight">
+                <h3 className="font-bold text-foreground truncate text-base sm:text-lg leading-tight group-hover:text-primary transition-colors duration-200">
                   {client.name}
                 </h3>
                 
                 <button 
                   onClick={() => handleWhatsApp()}
-                  className="flex items-center gap-1 sm:gap-1.5 mt-0.5 sm:mt-1 text-xs sm:text-sm text-muted-foreground hover:text-emerald-600 transition-colors cursor-pointer group/phone touch-manipulation"
+                  className="flex items-center gap-1.5 sm:gap-2 mt-1.5 sm:mt-2 text-xs sm:text-sm text-muted-foreground hover:text-emerald-600 transition-all duration-200 cursor-pointer group/phone touch-manipulation"
                 >
-                  <Phone className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
-                  <span className="group-hover/phone:underline decoration-dotted underline-offset-2">
+                  <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="group-hover/phone:underline decoration-dotted underline-offset-2 font-medium">
                     {client.phone}
                   </span>
                 </button>
 
                 {client.company && (
-                  <div className="flex items-center gap-1 sm:gap-1.5 mt-0.5 sm:mt-1 text-[10px] sm:text-xs text-muted-foreground">
-                    <Building className="h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0" />
+                  <div className="flex items-center gap-1.5 sm:gap-2 mt-1 sm:mt-1.5 text-[11px] sm:text-xs text-muted-foreground">
+                    <Building className="h-3 w-3 sm:h-3.5 sm:w-3.5 shrink-0" />
                     <span className="truncate">{client.company}</span>
                   </div>
                 )}
@@ -364,27 +364,27 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
                 onClick={openStatusMenu}
                 disabled={isUpdatingStatus}
                 className={cn(
-                  "inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-lg font-medium text-[10px] sm:text-xs border",
-                  "cursor-pointer transition-all duration-200 select-none touch-manipulation",
-                  "hover:ring-2 hover:ring-primary/20 active:scale-95",
+                  "inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl font-semibold text-[11px] sm:text-xs border-2",
+                  "cursor-pointer transition-all duration-300 select-none touch-manipulation shadow-sm",
+                  "hover:ring-2 hover:ring-primary/30 hover:shadow-md active:scale-95",
                   statusColors.bg,
                   statusColors.text,
                   statusColors.border,
                   isUpdatingStatus && "opacity-70 cursor-not-allowed",
-                  statusMenuOpen && "ring-2 ring-primary/30"
+                  statusMenuOpen && "ring-2 ring-primary/40 shadow-md scale-105"
                 )}
               >
                 {isUpdatingStatus ? (
                   <>
-                    <span className="h-2.5 w-2.5 sm:h-3 sm:w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    <span className="h-3 w-3 sm:h-3.5 sm:w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
                     <span>Updating...</span>
                   </>
                 ) : (
                   <>
-                    <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", statusColors.dot)} />
-                    <span className="truncate max-w-[80px] sm:max-w-none">{displayStatus || 'Set Status'}</span>
+                    <span className={cn("w-2 h-2 rounded-full shrink-0 shadow-sm", statusColors.dot)} />
+                    <span className="truncate max-w-[90px] sm:max-w-none">{displayStatus || 'Set Status'}</span>
                     <ChevronDown className={cn(
-                      "h-2.5 w-2.5 sm:h-3 sm:w-3 opacity-60 shrink-0 transition-transform duration-150",
+                      "h-3 w-3 sm:h-3.5 sm:w-3.5 opacity-70 shrink-0 transition-transform duration-300",
                       statusMenuOpen && "rotate-180"
                     )} />
                   </>
@@ -400,12 +400,12 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
                     right: statusMenuPos.right,
                     zIndex: 9999,
                   }}
-                  className="w-52 py-1.5 px-1.5 rounded-xl shadow-xl bg-popover border border-border animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-150"
+                  className="w-56 py-2 px-2 rounded-2xl shadow-2xl bg-popover/95 backdrop-blur-md border border-border/50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-3 duration-300"
                 >
-                  <p className="text-xs font-medium text-muted-foreground px-2 py-1.5 border-b mb-1">
+                  <p className="text-xs font-bold text-muted-foreground/80 uppercase tracking-wide px-3 py-2 border-b mb-1.5">
                     Update Status
                   </p>
-                  <div className="space-y-0.5 max-h-64 overflow-y-auto">
+                  <div className="space-y-1 max-h-72 overflow-y-auto">
                     {statusOptions.map((status) => {
                       const colors = getStatusColors(status);
                       return (
@@ -415,14 +415,14 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
                           onClick={(e) => { e.stopPropagation(); handleStatusChange(status); }}
                           disabled={isUpdatingStatus}
                           className={cn(
-                            "w-full flex items-center justify-between px-2.5 py-2 text-sm rounded-lg transition-all touch-manipulation",
+                            "w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 touch-manipulation",
                             displayStatus === status
-                              ? "bg-primary/10 text-primary font-medium"
-                              : "hover:bg-muted/70 active:bg-muted active:scale-[0.98]"
+                              ? "bg-primary/15 text-primary shadow-sm scale-[0.98]"
+                              : "hover:bg-muted/80 hover:scale-[0.98] active:scale-95"
                           )}
                         >
-                          <span className="flex items-center gap-2">
-                            <span className={cn("w-2 h-2 rounded-full", colors.dot)} />
+                          <span className="flex items-center gap-2.5">
+                            <span className={cn("w-2.5 h-2.5 rounded-full shadow-sm", colors.dot)} />
                             {status}
                           </span>
                           {displayStatus === status && <Check className="h-4 w-4 shrink-0" />}
@@ -437,20 +437,20 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
 
           {/* Last Contacted */}
           {client.lastContacted && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4 bg-muted/30 rounded-lg px-2.5 py-1.5 w-fit">
-              <Clock className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-              <span>Last contacted {formatDistanceToNow(client.lastContacted, { addSuffix: true })}</span>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mb-4 bg-muted/40 rounded-xl px-3 py-2 w-fit border border-border/30">
+              <Clock className="h-3.5 w-3.5" />
+              <span className="font-medium">Last contacted {formatDistanceToNow(client.lastContacted, { addSuffix: true })}</span>
             </div>
           )}
 
           {/* Action Buttons */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-2">
             <Button 
               onClick={handleCall}
               size="sm"
-              className="flex-1 gap-1 sm:gap-2 bg-primary hover:bg-primary/90 rounded-lg h-8 sm:h-9 font-medium shadow-sm text-xs sm:text-sm touch-manipulation active:scale-[0.97]"
+              className="flex-1 gap-2 bg-primary hover:bg-primary/90 rounded-xl h-9 sm:h-10 font-semibold shadow-md hover:shadow-lg text-xs sm:text-sm touch-manipulation transition-all duration-300 active:scale-[0.97]"
             >
-              <Phone className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+              <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               Call
             </Button>
             
@@ -461,19 +461,19 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
                   variant="outline"
                   size="sm"
                   type="button"
-                  className="flex-1 gap-1 sm:gap-2 border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 rounded-lg h-8 sm:h-9 font-medium group/wa text-xs sm:text-sm touch-manipulation active:scale-[0.97]"
+                  className="flex-1 gap-2 border-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-300 rounded-xl h-9 sm:h-10 font-semibold shadow-md hover:shadow-lg group/wa text-xs sm:text-sm touch-manipulation transition-all duration-300 active:scale-[0.97]"
                 >
-                  <MessageCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                  <MessageCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="hidden xs:inline">WhatsApp</span>
-                  <ChevronDown className="h-2.5 w-2.5 sm:h-3 sm:w-3 opacity-60 transition-transform group-data-[state=open]/wa:rotate-180" />
+                  <ChevronDown className="h-3 w-3 sm:h-3.5 sm:w-3.5 opacity-70 transition-transform group-data-[state=open]/wa:rotate-180" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent 
                 align="center" 
-                className="w-56 rounded-xl p-1.5 shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-top-2"
+                className="w-64 rounded-2xl p-2 shadow-2xl animate-in fade-in-0 zoom-in-95 slide-in-from-top-3 duration-300"
                 onCloseAutoFocus={(e) => e.preventDefault()}
               >
-                <p className="text-xs font-medium text-muted-foreground px-2 py-1.5 border-b mb-1">
+                <p className="text-xs font-bold text-muted-foreground/80 uppercase tracking-wide px-3 py-2 border-b mb-1.5">
                   Choose Message Template
                 </p>
                 {whatsappMessages.map((msg) => (
@@ -483,27 +483,27 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
                       e.stopPropagation();
                       handleWhatsApp(msg.message);
                     }}
-                    className="rounded-lg px-2.5 py-2.5 cursor-pointer transition-all hover:bg-emerald-50 focus:bg-emerald-50 gap-2.5 touch-manipulation"
+                    className="rounded-xl px-3 py-3 cursor-pointer transition-all hover:bg-emerald-50 focus:bg-emerald-50 gap-3 touch-manipulation"
                   >
-                    <span className="text-lg">{msg.emoji}</span>
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-medium text-sm">{msg.label}</span>
+                    <span className="text-xl">{msg.emoji}</span>
+                    <div className="flex flex-col gap-1">
+                      <span className="font-semibold text-sm">{msg.label}</span>
                       <span className="text-xs text-muted-foreground line-clamp-1">
                         {msg.message.split('\n')[0]}...
                       </span>
                     </div>
                   </DropdownMenuItem>
                 ))}
-                <DropdownMenuSeparator className="my-1.5" />
+                <DropdownMenuSeparator className="my-2" />
                 <DropdownMenuItem
                   onClick={(e) => {
                     e.stopPropagation();
                     handleWhatsApp();
                   }}
-                  className="rounded-lg px-2.5 py-2 cursor-pointer transition-all hover:bg-muted focus:bg-muted gap-2.5 touch-manipulation"
+                  className="rounded-xl px-3 py-2.5 cursor-pointer transition-all hover:bg-muted focus:bg-muted gap-3 touch-manipulation"
                 >
                   <MessageCircle className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">Open without message</span>
+                  <span className="text-sm font-medium">Open without message</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -515,19 +515,19 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
                   variant="outline" 
                   size="sm"
                   className={cn(
-                    "gap-1 sm:gap-1.5 rounded-lg h-8 sm:h-9 px-2 sm:px-3 border-border/50 text-xs sm:text-sm touch-manipulation active:scale-[0.97]",
-                    notesExpanded && "bg-muted border-muted-foreground/20"
+                    "gap-2 rounded-xl h-9 sm:h-10 px-3 sm:px-4 border-2 border-border/50 text-xs sm:text-sm font-semibold shadow-md hover:shadow-lg touch-manipulation transition-all duration-300 active:scale-[0.97]",
+                    notesExpanded && "bg-muted border-muted-foreground/30 shadow-inner"
                   )}
                 >
-                  <StickyNote className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                  <StickyNote className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span className="hidden sm:inline">Notes</span>
                   {client.notes.length > 0 && (
-                    <Badge variant="secondary" className="ml-0.5 h-4 sm:h-5 min-w-[16px] sm:min-w-[20px] px-1 sm:px-1.5 text-[10px] sm:text-xs rounded-md">
+                    <Badge variant="secondary" className="ml-0.5 h-5 min-w-[20px] px-1.5 text-xs rounded-md font-bold">
                       {client.notes.length}
                     </Badge>
                   )}
                   <ChevronDown className={cn(
-                    "h-2.5 w-2.5 sm:h-3 sm:w-3 transition-transform duration-200",
+                    "h-3 w-3 sm:h-3.5 sm:w-3.5 transition-transform duration-300",
                     notesExpanded && "rotate-180"
                   )} />
                 </Button>
@@ -537,25 +537,25 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
             {/* More Actions */}
             <DropdownMenu modal={true}>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" type="button" className="h-9 w-9 rounded-lg shrink-0 touch-manipulation active:scale-95">
+                <Button variant="ghost" size="icon" type="button" className="h-9 sm:h-10 w-9 sm:w-10 rounded-xl shrink-0 touch-manipulation hover:bg-muted/80 active:scale-95 transition-all duration-200 shadow-sm">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent 
                 align="end" 
-                className="w-48 rounded-xl"
+                className="w-52 rounded-2xl p-2 shadow-2xl"
                 onCloseAutoFocus={(e) => e.preventDefault()}
               >
-                <DropdownMenuItem className="rounded-lg gap-2 cursor-pointer touch-manipulation">
+                <DropdownMenuItem className="rounded-xl gap-2.5 cursor-pointer touch-manipulation py-2.5 font-medium hover:bg-primary/10 hover:text-primary">
                   <DollarSign className="h-4 w-4" />
                   Add Sale
                 </DropdownMenuItem>
-                <DropdownMenuItem className="rounded-lg gap-2 cursor-pointer touch-manipulation">
+                <DropdownMenuItem className="rounded-xl gap-2.5 cursor-pointer touch-manipulation py-2.5 font-medium hover:bg-primary/10 hover:text-primary">
                   <Mail className="h-4 w-4" />
                   Send Email
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem className="rounded-lg gap-2 text-destructive focus:text-destructive cursor-pointer touch-manipulation">
+                <DropdownMenuSeparator className="my-1.5" />
+                <DropdownMenuItem className="rounded-xl gap-2.5 text-destructive focus:text-destructive cursor-pointer touch-manipulation py-2.5 font-medium hover:bg-destructive/10">
                   Delete Client
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -565,21 +565,21 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
 
         {/* Notes Expanded Section */}
         <Collapsible open={notesExpanded} onOpenChange={setNotesExpanded}>
-          <CollapsibleContent className="animate-in slide-in-from-top-2 duration-200">
-            <div className="border-t border-border/50 bg-muted/20 p-4 space-y-3">
+          <CollapsibleContent className="animate-in slide-in-from-top-2 duration-300">
+            <div className="border-t border-border/40 bg-gradient-to-b from-muted/30 to-muted/10 p-4 sm:p-5 space-y-4">
               {/* Add Note */}
-              <div className="flex gap-2">
+              <div className="flex gap-2.5">
                 <Textarea
                   placeholder="Add a note..."
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
-                  className="min-h-[70px] bg-background rounded-lg resize-none text-sm border-border/50 focus:border-primary/50"
+                  className="min-h-[80px] bg-background rounded-xl resize-none text-sm border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 transition-all duration-200 placeholder:text-muted-foreground/60"
                 />
                 <Button 
                   size="icon"
                   onClick={handleAddNote}
                   disabled={!newNote.trim()}
-                  className="shrink-0 rounded-lg h-9 w-9"
+                  className="shrink-0 rounded-xl h-10 w-10 shadow-md hover:shadow-lg transition-all duration-200"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -587,24 +587,24 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
 
               {/* Notes List */}
               {client.notes.length > 0 ? (
-                <div className="space-y-2 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
+                <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
                   {client.notes.slice().reverse().map((note) => (
                     <div 
                       key={note.id}
-                      className="p-3 bg-background rounded-lg border border-border/50 text-sm group/note hover:border-border transition-colors"
+                      className="p-3.5 bg-background rounded-xl border border-border/50 text-sm group/note hover:border-border hover:shadow-md transition-all duration-200"
                     >
-                      <p className="text-foreground whitespace-pre-wrap">{note.content}</p>
-                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/30 text-xs text-muted-foreground">
-                        <span className="font-medium">{note.createdBy}</span>
-                        <span>{formatDistanceToNow(note.createdAt, { addSuffix: true })}</span>
+                      <p className="text-foreground whitespace-pre-wrap leading-relaxed">{note.content}</p>
+                      <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/40 text-xs text-muted-foreground">
+                        <span className="font-semibold">{note.createdBy}</span>
+                        <span className="font-medium">{formatDistanceToNow(note.createdAt, { addSuffix: true })}</span>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-4 text-sm text-muted-foreground">
-                  <StickyNote className="h-5 w-5 mx-auto mb-1.5 opacity-50" />
-                  No notes yet
+                <div className="text-center py-6 text-sm text-muted-foreground">
+                  <StickyNote className="h-6 w-6 mx-auto mb-2 opacity-40" />
+                  <p className="font-medium">No notes yet</p>
                 </div>
               )}
             </div>

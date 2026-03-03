@@ -112,24 +112,25 @@ interface StatCardProps {
 const StatCard = ({ label, value, icon: Icon, gradient, iconColor, iconBg, onClick, isActive }: StatCardProps) => (
   <Card 
     className={cn(
-      "cursor-pointer transition-all duration-200 border-border/50 hover:border-primary/30 hover:shadow-lg group overflow-hidden",
-      "active:scale-[0.98] touch-manipulation select-none",
-      isActive && "ring-2 ring-primary/50 border-primary/50"
+      "cursor-pointer transition-all duration-300 ease-out border-border/40 hover:border-primary/40 group overflow-hidden relative",
+      "active:scale-[0.97] touch-manipulation select-none",
+      "hover:shadow-xl hover:-translate-y-1",
+      isActive ? "ring-2 ring-primary/60 border-primary/60 shadow-lg" : "shadow-md"
     )}
     onClick={onClick}
     role="button"
     tabIndex={0}
     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onClick?.(); }}
   >
-    <CardContent className="p-3 sm:p-4 lg:p-5 relative">
-      <div className={cn("absolute inset-0 bg-gradient-to-br opacity-50", gradient)} />
-      <div className="relative flex items-center justify-between gap-2">
-        <div className="space-y-0.5 sm:space-y-1 min-w-0 flex-1">
-          <p className="text-xs sm:text-sm font-medium text-muted-foreground truncate">{label}</p>
-          <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground group-hover:text-primary transition-colors">{value}</p>
+    <CardContent className="p-4 sm:p-5 lg:p-6 relative z-10">
+      <div className={cn("absolute inset-0 bg-gradient-to-br opacity-40 transition-opacity duration-300 group-hover:opacity-60 z-0", gradient)} />
+      <div className="relative z-10 flex items-center justify-between gap-3">
+        <div className="space-y-1 sm:space-y-2 min-w-0 flex-1">
+          <p className="text-xs sm:text-sm font-semibold text-muted-foreground/90 uppercase tracking-wide truncate">{label}</p>
+          <p className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground group-hover:text-primary transition-colors duration-300">{value}</p>
         </div>
-        <div className={cn("p-2 sm:p-2.5 lg:p-3 rounded-xl transition-transform duration-200 group-hover:scale-110 shrink-0", iconBg)}>
-          <Icon className={cn("h-4 w-4 sm:h-5 sm:w-5 lg:h-6 lg:w-6", iconColor)} />
+        <div className={cn("p-3 sm:p-3.5 lg:p-4 rounded-2xl transition-all duration-300 group-hover:scale-110 group-hover:rotate-3 shrink-0 shadow-sm", iconBg)}>
+          <Icon className={cn("h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7", iconColor)} />
         </div>
       </div>
     </CardContent>
@@ -215,38 +216,38 @@ function CustomStatusDropdown({ value, onChange, placeholder, disabled }: Custom
   };
 
   return (
-    <div ref={dropdownRef} className="relative inline-block w-full sm:w-[170px]">
+    <div ref={dropdownRef} className="relative inline-block w-full sm:w-[190px]">
       {/* Trigger Button */}
       <button
         type="button"
         onClick={toggleDropdown}
         disabled={disabled}
         className={cn(
-          "flex items-center justify-between w-full h-10 px-3 py-2",
-          "bg-background border border-border/50 rounded-lg",
+          "flex items-center justify-between w-full h-10 sm:h-11 px-3.5 py-2",
+          "bg-background/80 border border-border/50 rounded-xl backdrop-blur-sm",
           "text-sm font-medium text-foreground",
-          "hover:border-primary/50 hover:bg-accent/30",
+          "hover:border-primary/50 hover:bg-muted/70 hover:shadow-sm",
           "active:scale-[0.98] touch-manipulation select-none",
-          "transition-all duration-150",
+          "transition-all duration-300",
           "focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-offset-1",
-          isOpen && "border-primary/50 ring-2 ring-primary/20",
+          isOpen && "border-primary/50 ring-2 ring-primary/25 shadow-md",
           disabled && "opacity-60 cursor-not-allowed pointer-events-none"
         )}
       >
-        <span className="flex items-center gap-2 truncate">
+        <span className="flex items-center gap-2.5 truncate">
           {placeholder ? (
             // Bulk-action mode: show placeholder text with pencil-like indicator
             <span className="truncate text-muted-foreground">{placeholder}</span>
           ) : (
             <>
-              <span className={cn("w-2 h-2 rounded-full shrink-0", selectedOption.color)} />
+              <span className={cn("w-2.5 h-2.5 rounded-full shrink-0 shadow-sm", selectedOption.color)} />
               <span className="truncate">{selectedOption.label}</span>
             </>
           )}
         </span>
         <ChevronDown 
           className={cn(
-            "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
+            "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300",
             isOpen && "rotate-180"
           )} 
         />
@@ -265,35 +266,35 @@ function CustomStatusDropdown({ value, onChange, placeholder, disabled }: Custom
           {/* Dropdown content */}
           <div
             className={cn(
-              "absolute left-0 mt-1.5 w-full min-w-[180px]",
-              "bg-popover border border-border rounded-xl shadow-xl",
+              "absolute left-0 mt-2 w-full min-w-[200px]",
+              "bg-popover/95 backdrop-blur-md border border-border/50 rounded-2xl shadow-2xl",
               "z-[9999] overflow-hidden",
               // Animation
-              "animate-in fade-in-0 zoom-in-95 slide-in-from-top-2",
-              "duration-150"
+              "animate-in fade-in-0 zoom-in-95 slide-in-from-top-3",
+              "duration-300"
             )}
             style={{ 
               transformOrigin: 'top',
             }}
           >
-            <div className="py-1.5 px-1.5 max-h-[300px] overflow-y-auto">
+            <div className="py-2 px-2 max-h-[320px] overflow-y-auto">
               {QUICK_STATUS_OPTIONS.filter(opt => placeholder ? opt.value !== 'all' : true).map((option) => (
                 <button
                   key={option.value}
                   type="button"
                   onClick={() => handleSelect(option.value)}
                   className={cn(
-                    "flex items-center justify-between w-full px-2.5 py-2.5 sm:py-2",
-                    "text-sm rounded-lg",
-                    "transition-colors duration-100",
+                    "flex items-center justify-between w-full px-3 py-2.5 sm:py-2.5",
+                    "text-sm rounded-xl font-medium",
+                    "transition-all duration-200",
                     "touch-manipulation select-none",
                     value === option.value 
-                      ? "bg-primary/10 text-primary font-medium" 
-                      : "text-foreground hover:bg-muted/70 active:bg-muted"
+                      ? "bg-primary/15 text-primary shadow-sm scale-[0.98]" 
+                      : "text-foreground hover:bg-muted/80 hover:scale-[0.98] active:scale-95"
                   )}
                 >
-                  <span className="flex items-center gap-2.5">
-                    <span className={cn("w-2.5 h-2.5 rounded-full shrink-0", option.color)} />
+                  <span className="flex items-center gap-3">
+                    <span className={cn("w-3 h-3 rounded-full shrink-0 shadow-sm", option.color)} />
                     <span>{option.label}</span>
                   </span>
                   {value === option.value && (
@@ -478,7 +479,7 @@ export function ClientManagement() {
   const hasActiveFilters = debouncedSearchQuery || quickStatusFilter !== 'all' || dateFilter !== 'all' || activeTab !== 'all';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 sm:space-y-7">
       {/* Summary Stats Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {STAT_CARDS.map((stat) => (
@@ -497,28 +498,32 @@ export function ClientManagement() {
       </div>
 
       {/* Tabs */}
-      <div className="bg-card rounded-xl border border-border/50 p-1 sm:p-1.5 shadow-sm overflow-x-auto scrollbar-thin">
+      <div className="bg-card rounded-2xl border border-border/40 p-1.5 sm:p-2 shadow-md overflow-x-auto scrollbar-thin">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full bg-transparent h-auto p-0 gap-1 flex flex-nowrap sm:flex-wrap min-w-max sm:min-w-0">
+          <TabsList className="w-full bg-transparent h-auto p-0 gap-2 flex flex-nowrap sm:flex-wrap min-w-max sm:min-w-0">
             {STATUS_TABS.map((tab) => (
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
                 className={cn(
-                  "flex-shrink-0 sm:flex-1 sm:min-w-[100px] px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all duration-200",
-                  "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm",
+                  "flex-shrink-0 sm:flex-1 sm:min-w-[110px] px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300",
+                  "data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-primary/90",
+                  "data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/25",
+                  "data-[state=active]:scale-105",
                   "data-[state=inactive]:bg-transparent data-[state=inactive]:text-muted-foreground",
-                  "data-[state=inactive]:hover:bg-muted/50",
-                  "active:scale-[0.97] touch-manipulation select-none"
+                  "data-[state=inactive]:hover:bg-muted/70 data-[state=inactive]:hover:text-foreground",
+                  "active:scale-[0.98] touch-manipulation select-none"
                 )}
               >
-                <tab.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
+                <tab.icon className="h-4 w-4 sm:h-4 sm:w-4 mr-2" />
                 <span className="whitespace-nowrap">{tab.label}</span>
                 <Badge 
                   variant="secondary" 
                   className={cn(
-                    "ml-1.5 sm:ml-2 text-xs px-1.5",
-                    activeTab === tab.id ? "bg-primary-foreground/20 text-primary-foreground" : "bg-muted"
+                    "ml-2 text-xs px-2 py-0.5 rounded-md font-bold transition-colors duration-300",
+                    activeTab === tab.id 
+                      ? "bg-primary-foreground/25 text-primary-foreground border-primary-foreground/20" 
+                      : "bg-muted/80 text-muted-foreground"
                   )}
                 >
                   {tab.id === 'all' ? stats.total : (stats[tab.id] || 0)}
@@ -530,22 +535,24 @@ export function ClientManagement() {
       </div>
 
       {/* Search and Filters */}
-      <Card className="border-border/50 shadow-sm">
-        <CardContent className="p-3 sm:p-4 lg:p-5 space-y-3 sm:space-y-4">
+      <Card className="border-border/40 shadow-md hover:shadow-lg transition-shadow duration-300">
+        <CardContent className="p-4 sm:p-5 lg:p-6 space-y-4 sm:space-y-5">
           {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute left-3 sm:left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          <div className="relative group">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 transition-colors duration-200">
+              <Search className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground group-focus-within:text-primary" />
+            </div>
             <Input
-              placeholder="Search by name, phone, email..."
+              placeholder="Search by name, phone, email, or company..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 sm:pl-10 h-10 sm:h-11 bg-background border-border/50 rounded-xl focus:ring-2 focus:ring-primary/20 transition-all text-sm sm:text-base"
+              className="pl-11 sm:pl-12 pr-10 h-11 sm:h-12 bg-muted/30 border-border/50 rounded-xl focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all duration-300 text-sm sm:text-base placeholder:text-muted-foreground/60 hover:bg-muted/50"
             />
             {searchQuery && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="absolute right-1.5 sm:right-2 top-1/2 -translate-y-1/2 h-7 w-7 p-0 touch-manipulation"
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 p-0 rounded-lg hover:bg-destructive/10 hover:text-destructive touch-manipulation transition-all duration-200"
                 onClick={() => setSearchQuery('')}
               >
                 <X className="h-4 w-4" />
@@ -554,13 +561,15 @@ export function ClientManagement() {
           </div>
 
           {/* Filter Row */}
-          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2 sm:gap-3">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Filter className="h-4 w-4" />
-              <span>Filters:</span>
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 sm:gap-4">
+            <div className="flex items-center gap-2.5 text-sm font-semibold text-foreground/80">
+              <div className="p-1.5 rounded-lg bg-primary/10">
+                <Filter className="h-4 w-4 text-primary" />
+              </div>
+              <span>Filters</span>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
               {/* Status Filter */}
               <CustomStatusDropdown 
                 value={quickStatusFilter} 
@@ -574,12 +583,13 @@ export function ClientManagement() {
                     variant="outline"
                     type="button"
                     className={cn(
-                      "w-full sm:w-[180px] h-10 justify-start text-left font-normal border-border/50 rounded-lg touch-manipulation active:scale-[0.98]",
-                      dateFilter !== 'all' && "text-foreground"
+                      "w-full sm:w-[200px] h-10 sm:h-11 justify-start text-left font-medium border-border/50 rounded-xl touch-manipulation transition-all duration-300",
+                      "hover:bg-muted/70 hover:border-primary/30",
+                      dateFilter !== 'all' && "border-primary/50 bg-primary/5 text-foreground"
                     )}
                   >
-                    <Calendar className="mr-2 h-4 w-4 shrink-0" />
-                    <span className="truncate">
+                    <Calendar className="mr-2.5 h-4 w-4 shrink-0" />
+                    <span className="truncate text-sm">
                       {dateFilter === 'all' && 'All Time'}
                       {dateFilter === 'today' && 'Today'}
                       {dateFilter === 'this-week' && 'This Week'}
@@ -588,6 +598,7 @@ export function ClientManagement() {
                       }
                       {dateFilter === 'custom' && (!dateRange.from || !dateRange.to) && 'Custom Range'}
                     </span>
+                    <ChevronDown className="ml-auto h-4 w-4 opacity-50" />
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0 rounded-xl" align="start" sideOffset={4}>
@@ -643,51 +654,51 @@ export function ClientManagement() {
                 variant="ghost" 
                 size="sm" 
                 onClick={clearFilters}
-                className="gap-1.5 text-muted-foreground hover:text-foreground"
+                className="gap-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl px-4 h-10 sm:h-11 font-medium transition-all duration-200"
               >
-                <X className="h-3.5 w-3.5" />
-                Clear all
+                <X className="h-4 w-4" />
+                <span className="text-sm">Clear all</span>
               </Button>
             )}
           </div>
 
           {/* Active Filters Tags */}
           {hasActiveFilters && (
-            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/30">
-              <span className="text-xs text-muted-foreground">Active:</span>
+            <div className="flex flex-wrap items-center gap-2.5 pt-3 border-t border-border/30">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Active Filters:</span>
               {activeTab !== 'all' && (
-                <Badge variant="secondary" className="gap-1 py-0.5 sm:py-1 px-2 sm:px-2.5 rounded-lg text-xs touch-manipulation">
-                  <span className="hidden sm:inline">Tab: </span>{STATUS_TABS.find(t => t.id === activeTab)?.label}
+                <Badge variant="secondary" className="gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium touch-manipulation hover:bg-secondary/80 transition-colors group">
+                  <span className="hidden sm:inline font-semibold">Tab: </span>{STATUS_TABS.find(t => t.id === activeTab)?.label}
                   <button 
-                    className="ml-1 p-0.5 hover:text-destructive transition-colors cursor-pointer" 
+                    className="ml-1 p-0.5 hover:text-destructive transition-colors cursor-pointer rounded" 
                     onClick={() => setActiveTab('all')} 
                   >
-                    <X className="h-3 w-3" />
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 </Badge>
               )}
               {quickStatusFilter !== 'all' && (
-                <Badge variant="secondary" className="gap-1 py-0.5 sm:py-1 px-2 sm:px-2.5 rounded-lg text-xs touch-manipulation">
-                  <span className="hidden sm:inline">Status: </span>{quickStatusFilter}
+                <Badge variant="secondary" className="gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium touch-manipulation hover:bg-secondary/80 transition-colors group">
+                  <span className="hidden sm:inline font-semibold">Status: </span>{quickStatusFilter}
                   <button 
-                    className="ml-1 p-0.5 hover:text-destructive transition-colors cursor-pointer" 
+                    className="ml-1 p-0.5 hover:text-destructive transition-colors cursor-pointer rounded" 
                     onClick={() => setQuickStatusFilter('all')} 
                   >
-                    <X className="h-3 w-3" />
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 </Badge>
               )}
               {dateFilter !== 'all' && (
-                <Badge variant="secondary" className="gap-1 py-0.5 sm:py-1 px-2 sm:px-2.5 rounded-lg text-xs touch-manipulation">
-                  <span className="hidden sm:inline">Date: </span>{DATE_FILTERS.find(d => d.id === dateFilter)?.label}
+                <Badge variant="secondary" className="gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium touch-manipulation hover:bg-secondary/80 transition-colors group">
+                  <span className="hidden sm:inline font-semibold">Date: </span>{DATE_FILTERS.find(d => d.id === dateFilter)?.label}
                   <button 
-                    className="ml-1 p-0.5 hover:text-destructive transition-colors cursor-pointer" 
+                    className="ml-1 p-0.5 hover:text-destructive transition-colors cursor-pointer rounded" 
                     onClick={() => {
                       setDateFilter('all');
                       setDateRange({ from: undefined, to: undefined });
                     }} 
                   >
-                    <X className="h-3 w-3" />
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 </Badge>
               )}
@@ -698,20 +709,20 @@ export function ClientManagement() {
       </Card>
 
       {/* Action Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border border-border/40 rounded-2xl p-4 shadow-md">
+        <div className="flex items-center gap-4 sm:gap-5 flex-wrap">
+          <div className="flex items-center gap-2.5">
             <Checkbox
               id="select-all"
               checked={filteredClients.length > 0 && selectedClients.size === filteredClients.length}
               onCheckedChange={(checked) => handleSelectAll(!!checked)}
-              className="rounded h-4 w-4 touch-manipulation"
+              className="rounded h-5 w-5 border-2 touch-manipulation"
             />
-            <label htmlFor="select-all" className="text-xs sm:text-sm text-muted-foreground cursor-pointer select-none touch-manipulation">
+            <label htmlFor="select-all" className="text-sm font-semibold text-foreground cursor-pointer select-none touch-manipulation">
               Select All
             </label>
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-muted-foreground">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground bg-muted/40 rounded-lg px-3 py-1.5">
             <Users className="h-4 w-4" />
             <span>
               {selectedClients.size > 0 
@@ -722,11 +733,11 @@ export function ClientManagement() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        <div className="flex items-center gap-2.5 w-full sm:w-auto">
           {selectedClients.size > 0 && (
-            <div className="flex items-center gap-2 flex-1 sm:flex-none">
+            <div className="flex items-center gap-2.5 flex-1 sm:flex-none">
               {/* Bulk Change Status */}
-              <div className="relative flex-1 sm:w-[170px]">
+              <div className="relative flex-1 sm:w-[190px]">
                 <CustomStatusDropdown
                   value="all"
                   onChange={handleBulkStatusChange}
@@ -741,25 +752,25 @@ export function ClientManagement() {
               <AlertDialogTrigger asChild>
                 <Button 
                   variant="destructive" 
-                  className="rounded-lg gap-1.5 sm:gap-2 flex-1 sm:flex-none h-9 sm:h-10 text-xs sm:text-sm touch-manipulation" 
+                  className="rounded-xl gap-2 flex-1 sm:flex-none h-10 sm:h-11 text-xs sm:text-sm font-semibold shadow-md hover:shadow-lg touch-manipulation transition-all duration-200" 
                   disabled={isDeleting}
                 >
-                  <Trash2 className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <Trash2 className="h-4 w-4" />
                   <span>Delete ({selectedClients.size})</span>
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent className="rounded-xl mx-4 max-w-md">
+              <AlertDialogContent className="rounded-2xl mx-4 max-w-md">
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Delete {selectedClients.size} clients?</AlertDialogTitle>
-                  <AlertDialogDescription>
+                  <AlertDialogTitle className="text-lg font-bold">Delete {selectedClients.size} clients?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-sm">
                     This action cannot be undone. This will permanently delete the selected clients and all their data.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
-                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-                  <AlertDialogCancel className="rounded-lg w-full sm:w-auto">Cancel</AlertDialogCancel>
+                <AlertDialogFooter className="flex-col sm:flex-row gap-2.5">
+                  <AlertDialogCancel className="rounded-xl w-full sm:w-auto font-semibold">Cancel</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={handleBulkDelete}
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-lg w-full sm:w-auto"
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl w-full sm:w-auto font-semibold shadow-md"
                   >
                     {isDeleting ? 'Deleting...' : 'Delete'}
                   </AlertDialogAction>
@@ -767,22 +778,22 @@ export function ClientManagement() {
               </AlertDialogContent>
             </AlertDialog>
           )}
-          <Button className="rounded-lg gap-1.5 sm:gap-2 flex-1 sm:flex-none h-9 sm:h-10 text-xs sm:text-sm touch-manipulation">
-            <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          <Button className="rounded-xl gap-2 flex-1 sm:flex-none h-10 sm:h-11 text-xs sm:text-sm font-semibold shadow-md hover:shadow-lg touch-manipulation transition-all duration-300">
+            <Plus className="h-4 w-4" />
             <span>Add Client</span>
           </Button>
         </div>
       </div>
 
       {/* Client Cards Grid — renders only visibleCount items for performance */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
         {visibleClients.map((client) => (
           <div key={client.id} className="relative group">
-            <div className="absolute top-3 sm:top-4 left-3 sm:left-4 z-10 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
+            <div className="absolute top-4 sm:top-5 left-4 sm:left-5 z-10 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
               <Checkbox
                 checked={selectedClients.has(client.id)}
                 onCheckedChange={(checked) => handleSelectClient(client.id, !!checked)}
-                className="rounded bg-background/90 backdrop-blur-sm h-4 w-4 sm:h-5 sm:w-5 touch-manipulation shadow-sm"
+                className="rounded bg-background/95 backdrop-blur-sm h-5 w-5 border-2 touch-manipulation shadow-lg"
               />
             </div>
             <ClientCardNew 
@@ -795,11 +806,17 @@ export function ClientManagement() {
 
       {/* Load More */}
       {hasMore && (
-        <div className="flex flex-col items-center gap-1.5 pt-2">
-          <p className="text-xs text-muted-foreground">
-            Showing {visibleClients.length} of {filteredClients.length} clients
-          </p>
-          <Button variant="outline" onClick={loadMore} className="rounded-lg touch-manipulation">
+        <div className="flex flex-col items-center gap-3 pt-2">
+          <div className="px-4 py-2 bg-muted/50 rounded-xl border border-border/30">
+            <p className="text-sm font-semibold text-muted-foreground">
+              Showing {visibleClients.length} of {filteredClients.length} clients
+            </p>
+          </div>
+          <Button 
+            variant="outline" 
+            onClick={loadMore} 
+            className="rounded-xl font-semibold shadow-md hover:shadow-lg transition-all duration-300 h-11 px-6 border-2"
+          >
             Load more ({Math.min(PAGE_SIZE, filteredClients.length - visibleCount)} more)
           </Button>
         </div>
@@ -807,18 +824,23 @@ export function ClientManagement() {
 
       {/* Empty State */}
       {filteredClients.length === 0 && (
-        <Card className="border-border/50 border-dashed">
-          <CardContent className="py-10 sm:py-16 px-4">
+        <Card className="border-border/40 border-dashed shadow-md">
+          <CardContent className="py-12 sm:py-20 px-4">
             <div className="text-center">
-              <div className="mx-auto w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-muted/50 flex items-center justify-center mb-3 sm:mb-4">
-                <Users className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
+              <div className="mx-auto w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-muted/80 to-muted/40 flex items-center justify-center mb-5 sm:mb-6 shadow-inner">
+                <Users className="h-8 w-8 sm:h-10 sm:w-10 text-muted-foreground/70" />
               </div>
-              <h3 className="text-base sm:text-lg font-semibold text-foreground mb-1.5 sm:mb-2">No clients found</h3>
-              <p className="text-sm sm:text-base text-muted-foreground mb-3 sm:mb-4 max-w-sm mx-auto">
+              <h3 className="text-lg sm:text-xl font-bold text-foreground mb-2 sm:mb-3">No clients found</h3>
+              <p className="text-sm sm:text-base text-muted-foreground mb-5 sm:mb-6 max-w-md mx-auto leading-relaxed">
                 Try adjusting your search or filters to find what you're looking for.
               </p>
               {hasActiveFilters && (
-                <Button variant="outline" onClick={clearFilters} className="rounded-lg touch-manipulation">
+                <Button 
+                  variant="outline" 
+                  onClick={clearFilters} 
+                  className="rounded-xl font-semibold shadow-md hover:shadow-lg transition-all duration-300 h-11 px-6 border-2"
+                >
+                  <X className="mr-2 h-4 w-4" />
                   Clear all filters
                 </Button>
               )}
