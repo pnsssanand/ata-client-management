@@ -776,7 +776,11 @@ function InternHistoryDialog({
   );
 }
 
-export function InternTracker() {
+interface InternTrackerProps {
+  onSessionStarted?: (internName: string) => void;
+}
+
+export function InternTracker({ onSessionStarted }: InternTrackerProps) {
   const clients = useClientStore((state) => state.clients);
   const dropdowns = useClientStore((state) => state.dropdowns);
   const internSessions = useClientStore((state) => state.internSessions);
@@ -852,10 +856,13 @@ export function InternTracker() {
     setIsLoggingIn(true);
     try {
       await startInternSession(nameToUse, loginTime);
-      // Show greeting popup
+      // Show centered greeting popup before redirecting to clients page.
       setGreetingInternName(nameToUse);
       setGreetingType('login');
       setShowGreetingPopup(true);
+      setTimeout(() => {
+        onSessionStarted?.(nameToUse);
+      }, 1200);
       setSelectedInternName('');
       setCustomInternName('');
     } catch (error: any) {

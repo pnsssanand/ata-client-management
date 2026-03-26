@@ -168,7 +168,9 @@ const Index = () => {
           {currentPage === 'import' && <ImportClients />}
 
           {/* Intern Tracker Page */}
-          {currentPage === 'intern' && <InternTracker />}
+          {currentPage === 'intern' && (
+            <InternTracker onSessionStarted={() => setCurrentPage('clients')} />
+          )}
 
           {/* Settings Page */}
           {currentPage === 'settings' && <DropdownSettings />}
