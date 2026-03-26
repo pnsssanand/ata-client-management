@@ -1,11 +1,11 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { 
-  Users, 
-  UserCheck, 
-  PhoneOff, 
-  TrendingUp, 
-  Plus, 
-  Trash2, 
+import {
+  Users,
+  UserCheck,
+  PhoneOff,
+  TrendingUp,
+  Plus,
+  Trash2,
   Search,
   Calendar,
   Filter,
@@ -14,8 +14,14 @@ import {
   Sparkles,
   Phone,
   Clock,
-  Check
+  Check,
+  Download,
+  MessageCircle,
+  CalendarCheck,
+  FileSpreadsheet,
+  Upload
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -56,37 +62,45 @@ const STATUS_TABS = [
 
 // Stat card configuration
 const STAT_CARDS = [
-  { 
-    key: 'total', 
-    label: 'Total Clients', 
-    icon: Users, 
+  {
+    key: 'total',
+    label: 'Total Clients',
+    icon: Users,
     gradient: 'from-blue-500/10 to-blue-600/5',
     iconColor: 'text-blue-500',
     iconBg: 'bg-blue-500/10'
   },
-  { 
-    key: 'Converted', 
-    label: 'Converted', 
-    icon: UserCheck, 
+  {
+    key: 'Converted',
+    label: 'Converted',
+    icon: UserCheck,
     gradient: 'from-emerald-500/10 to-emerald-600/5',
     iconColor: 'text-emerald-500',
     iconBg: 'bg-emerald-500/10'
   },
-  { 
-    key: 'Not answered', 
-    label: 'Not Answered', 
-    icon: PhoneOff, 
+  {
+    key: 'Not answered',
+    label: 'Not Answered',
+    icon: PhoneOff,
     gradient: 'from-yellow-500/10 to-yellow-600/5',
     iconColor: 'text-yellow-500',
     iconBg: 'bg-yellow-500/10'
   },
-  { 
-    key: 'New Lead', 
-    label: 'New Leads', 
-    icon: TrendingUp, 
-    gradient: 'from-purple-500/10 to-purple-600/5',
-    iconColor: 'text-purple-500',
-    iconBg: 'bg-purple-500/10'
+  {
+    key: 'Hindi',
+    label: 'Hindi',
+    icon: MessageCircle,
+    gradient: 'from-orange-500/10 to-orange-600/5',
+    iconColor: 'text-orange-500',
+    iconBg: 'bg-orange-500/10'
+  },
+  {
+    key: 'Slot Booked',
+    label: 'Slot Booked',
+    icon: CalendarCheck,
+    gradient: 'from-cyan-500/10 to-cyan-600/5',
+    iconColor: 'text-cyan-500',
+    iconBg: 'bg-cyan-500/10'
   },
 ];
 
@@ -146,7 +160,8 @@ const QUICK_STATUS_OPTIONS = [
   { value: 'Converted', label: 'Converted', color: 'bg-emerald-500' },
   { value: 'Lost', label: 'Lost', color: 'bg-gray-500' },
   { value: 'App Installed', label: 'App Installed', color: 'bg-violet-500' },
-  { value: 'Slot Booked', label: 'Slot Booked', color: 'bg-blue-500' },
+  { value: 'Slot Booked', label: 'Slot Booked', color: 'bg-cyan-500' },
+  { value: 'Hindi', label: 'Hindi', color: 'bg-orange-500' },
 ];
 
 // Custom Status Dropdown Component - Pure React, no Radix
@@ -313,7 +328,7 @@ function CustomStatusDropdown({ value, onChange, placeholder, disabled }: Custom
 const PAGE_SIZE = 50;
 
 export function ClientManagement() {
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState('New Lead');
   const [searchQuery, setSearchQuery] = useState('');
   const [quickStatusFilter, setQuickStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
@@ -325,6 +340,15 @@ export function ClientManagement() {
   const bulkSafetyTimerRef = useRef<number | null>(null); // force-reset if API hangs
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // Excel matching feature state
+  const [isMatchingExcel, setIsMatchingExcel] = useState(false);
+  const [matchStats, setMatchStats] = useState<{
+    total: number;
+    matched: number;
+    notFound: number;
+  } | null>(null);
+  const excelMatchInputRef = useRef<HTMLInputElement>(null);
 
   // Debounce search query for performance
   const debouncedSearchQuery = useDebounce(searchQuery, 400);
@@ -478,10 +502,267 @@ export function ClientManagement() {
 
   const hasActiveFilters = debouncedSearchQuery || quickStatusFilter !== 'all' || dateFilter !== 'all' || activeTab !== 'all';
 
+  // Export to Excel function
+  const handleExportToExcel = useCallback(() => {
+    if (clients.length === 0) {
+      toast.error('No clients to export');
+      return;
+    }
+
+    // Prepare data for export
+    const exportData = clients.map((client) => ({
+      'Name': client.name,
+      'Phone': client.phone,
+      'Email': client.email || '',
+      'Company': client.company || '',
+      'Status': client.status,
+      'Priority': client.priority,
+      'Call Outcome': client.callOutcome || '',
+      'Follow Up Required': client.followUpRequired ? 'Yes' : 'No',
+      'Last Contacted': client.lastContacted ? format(new Date(client.lastContacted), 'dd/MM/yyyy') : '',
+      'Created At': format(new Date(client.createdAt), 'dd/MM/yyyy'),
+      'Notes': client.notes.map(n => n.content).join('; ')
+    }));
+
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(exportData);
+
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 20 }, // Name
+      { wch: 15 }, // Phone
+      { wch: 25 }, // Email
+      { wch: 20 }, // Company
+      { wch: 15 }, // Status
+      { wch: 10 }, // Priority
+      { wch: 15 }, // Call Outcome
+      { wch: 15 }, // Follow Up Required
+      { wch: 12 }, // Last Contacted
+      { wch: 12 }, // Created At
+      { wch: 40 }, // Notes
+    ];
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Clients');
+
+    // Generate filename with date
+    const fileName = `Clients_Export_${format(new Date(), 'dd-MM-yyyy_HH-mm')}.xlsx`;
+
+    // Download file
+    XLSX.writeFile(wb, fileName);
+    toast.success(`Exported ${clients.length} clients to Excel`);
+  }, [clients]);
+
+  // Normalize phone number for comparison (remove all non-digit characters except +)
+  const normalizePhone = useCallback((phone: string): string => {
+    return phone.replace(/[^0-9+]/g, '').replace(/^\+?91/, '').replace(/^0+/, '');
+  }, []);
+
+  // Handle Excel file upload to match and select contacts
+  const handleExcelMatchUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsMatchingExcel(true);
+    setMatchStats(null);
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { header: 1 });
+
+      if (jsonData.length === 0) {
+        toast.error('No data found in file');
+        setIsMatchingExcel(false);
+        return;
+      }
+
+      // Extract phone numbers from Excel
+      const excelPhones: string[] = [];
+      const firstRow = jsonData[0] as unknown[];
+      const hasHeader = firstRow && firstRow.some(cell =>
+        typeof cell === 'string' &&
+        (cell.toLowerCase().includes('name') || cell.toLowerCase().includes('phone'))
+      );
+      const startIndex = hasHeader ? 1 : 0;
+
+      for (let i = startIndex; i < jsonData.length; i++) {
+        const row = jsonData[i] as unknown[];
+        if (!row || row.length === 0) continue;
+
+        let phone = '';
+        if (row.length === 1) {
+          phone = String(row[0] || '').trim();
+        } else if (row.length >= 2) {
+          // Try second column first (common for Name, Phone format)
+          phone = String(row[1] || '').trim();
+          // If second column is empty, try first column
+          if (!phone) phone = String(row[0] || '').trim();
+        }
+
+        if (phone) {
+          const normalizedPhone = normalizePhone(phone);
+          if (normalizedPhone.length >= 10) {
+            excelPhones.push(normalizedPhone);
+          }
+        }
+      }
+
+      if (excelPhones.length === 0) {
+        toast.error('No valid phone numbers found in Excel file');
+        setIsMatchingExcel(false);
+        return;
+      }
+
+      // Create a set of normalized Excel phones for quick lookup
+      const excelPhoneSet = new Set(excelPhones);
+
+      // Find matching clients
+      const matchedClientIds = new Set<string>();
+      for (const client of clients) {
+        const normalizedClientPhone = normalizePhone(client.phone);
+        if (excelPhoneSet.has(normalizedClientPhone)) {
+          matchedClientIds.add(client.id);
+        }
+      }
+
+      // Update selection with matched clients
+      setSelectedClients(matchedClientIds);
+
+      // Calculate stats
+      const stats = {
+        total: excelPhones.length,
+        matched: matchedClientIds.size,
+        notFound: excelPhones.length - matchedClientIds.size
+      };
+      setMatchStats(stats);
+
+      // Clear filters to show all matched clients
+      setActiveTab('all');
+      setQuickStatusFilter('all');
+      setDateFilter('all');
+      setDateRange({ from: undefined, to: undefined });
+
+      if (matchedClientIds.size > 0) {
+        toast.success(`Found ${matchedClientIds.size} matching contacts`, {
+          description: `${stats.notFound} contacts from Excel not found in system`
+        });
+      } else {
+        toast.warning('No matching contacts found', {
+          description: `${excelPhones.length} phone numbers from Excel did not match any existing contacts`
+        });
+      }
+    } catch (error) {
+      console.error('Error parsing Excel file:', error);
+      toast.error('Error reading file', {
+        description: 'Please ensure the file is a valid Excel or CSV file.'
+      });
+    } finally {
+      setIsMatchingExcel(false);
+      // Reset file input
+      if (excelMatchInputRef.current) {
+        excelMatchInputRef.current.value = '';
+      }
+    }
+  }, [clients, normalizePhone]);
+
+  // Trigger file input for Excel matching
+  const handleSelectFromExcelClick = useCallback(() => {
+    excelMatchInputRef.current?.click();
+  }, []);
+
+  // Clear match stats when selection changes manually
+  const handleClearMatchStats = useCallback(() => {
+    setMatchStats(null);
+  }, []);
+
   return (
     <div className="space-y-6 sm:space-y-7">
+      {/* Hidden file input for Excel matching */}
+      <input
+        type="file"
+        ref={excelMatchInputRef}
+        accept=".xlsx,.xls,.csv"
+        onChange={handleExcelMatchUpload}
+        className="hidden"
+      />
+
+      {/* Export and Select from Excel Buttons */}
+      <div className="flex flex-wrap justify-end gap-2.5">
+        <Button
+          onClick={handleSelectFromExcelClick}
+          variant="outline"
+          disabled={isMatchingExcel}
+          className="gap-2 rounded-xl font-semibold shadow-md hover:shadow-lg transition-all duration-300 h-10 sm:h-11 px-4 sm:px-6 border-2 hover:bg-primary hover:text-primary-foreground"
+        >
+          {isMatchingExcel ? (
+            <>
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              <span>Matching...</span>
+            </>
+          ) : (
+            <>
+              <FileSpreadsheet className="h-4 w-4" />
+              <span>Select from Excel</span>
+            </>
+          )}
+        </Button>
+        <Button
+          onClick={handleExportToExcel}
+          variant="outline"
+          className="gap-2 rounded-xl font-semibold shadow-md hover:shadow-lg transition-all duration-300 h-10 sm:h-11 px-4 sm:px-6 border-2 hover:bg-primary hover:text-primary-foreground"
+        >
+          <Download className="h-4 w-4" />
+          <span>Export to Excel</span>
+        </Button>
+      </div>
+
+      {/* Excel Match Stats Banner */}
+      {matchStats && (
+        <Card className="border-primary/30 bg-primary/5 shadow-md">
+          <CardContent className="py-4 px-4 sm:px-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-full">
+                  <FileSpreadsheet className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground">Excel Match Results</p>
+                  <p className="text-sm text-muted-foreground">
+                    {matchStats.matched} of {matchStats.total} contacts matched
+                    {matchStats.notFound > 0 && ` (${matchStats.notFound} not found)`}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex gap-2">
+                  <Badge variant="secondary" className="bg-green-500/10 text-green-700 border-green-500/20">
+                    {matchStats.matched} Matched
+                  </Badge>
+                  {matchStats.notFound > 0 && (
+                    <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-700 border-yellow-500/20">
+                      {matchStats.notFound} Not Found
+                    </Badge>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearMatchStats}
+                  className="h-8 w-8 p-0 rounded-full hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Summary Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {STAT_CARDS.map((stat) => (
           <StatCard
             key={stat.key}

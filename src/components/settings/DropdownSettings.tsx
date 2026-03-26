@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, Save, X, PlusCircle } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X, PlusCircle, Users, Palette } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,18 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+// Predefined color options for intern cards
+const INTERN_COLORS = [
+  { name: 'Blue', value: '#3B82F6' },
+  { name: 'Emerald', value: '#10B981' },
+  { name: 'Purple', value: '#8B5CF6' },
+  { name: 'Orange', value: '#F97316' },
+  { name: 'Pink', value: '#EC4899' },
+  { name: 'Cyan', value: '#06B6D4' },
+  { name: 'Red', value: '#EF4444' },
+  { name: 'Indigo', value: '#6366F1' },
+];
+
 export function DropdownSettings() {
   // Subscribe to dropdowns from store for real-time updates across devices
   const dropdowns = useClientStore((state) => state.dropdowns);
@@ -28,12 +40,23 @@ export function DropdownSettings() {
   const updateDropdownOption = useClientStore((state) => state.updateDropdownOption);
   const deleteDropdownOption = useClientStore((state) => state.deleteDropdownOption);
   const currentUser = useClientStore((state) => state.currentUser);
-  
+
+  // Intern names state
+  const internNames = useClientStore((state) => state.internNames);
+  const addInternName = useClientStore((state) => state.addInternName);
+  const updateInternName = useClientStore((state) => state.updateInternName);
+  const deleteInternNameRecord = useClientStore((state) => state.deleteInternNameRecord);
+
   const [newFieldName, setNewFieldName] = useState('');
   const [newFieldOptions, setNewFieldOptions] = useState('');
   const [editingField, setEditingField] = useState<{ id: string; name: string } | null>(null);
   const [editingOption, setEditingOption] = useState<{ fieldId: string; index: number; value: string } | null>(null);
   const [newOptionValue, setNewOptionValue] = useState<{ fieldId: string; value: string } | null>(null);
+
+  // Intern names form state
+  const [newInternName, setNewInternName] = useState('');
+  const [selectedColor, setSelectedColor] = useState(INTERN_COLORS[0].value);
+  const [editingIntern, setEditingIntern] = useState<{ id: string; name: string; color: string } | null>(null);
 
   // Reset editing states when dropdowns update from other devices
   useEffect(() => {
@@ -56,6 +79,16 @@ export function DropdownSettings() {
       }
     }
   }, [dropdowns, editingField, editingOption, newOptionValue]);
+
+  // Reset intern editing state when internNames update
+  useEffect(() => {
+    if (editingIntern) {
+      const intern = internNames.find(i => i.id === editingIntern.id);
+      if (!intern) {
+        setEditingIntern(null);
+      }
+    }
+  }, [internNames, editingIntern]);
 
   const handleAddField = () => {
     if (!newFieldName.trim() || !newFieldOptions.trim()) {
@@ -130,8 +163,196 @@ export function DropdownSettings() {
     toast.success('Option added!');
   };
 
+  // Intern name handlers
+  const handleAddInternName = async () => {
+    if (!newInternName.trim()) {
+      toast.error('Please enter intern name');
+      return;
+    }
+
+    try {
+      await addInternName(newInternName.trim(), selectedColor);
+      setNewInternName('');
+      setSelectedColor(INTERN_COLORS[0].value);
+      toast.success(`Intern "${newInternName}" added successfully!`);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to add intern');
+    }
+  };
+
+  const handleUpdateInternName = async () => {
+    if (!editingIntern || !editingIntern.name.trim()) {
+      toast.error('Intern name cannot be empty');
+      return;
+    }
+
+    try {
+      await updateInternName(editingIntern.id, {
+        name: editingIntern.name.trim(),
+        color: editingIntern.color
+      });
+      setEditingIntern(null);
+      toast.success('Intern updated!');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update intern');
+    }
+  };
+
+  const handleDeleteInternName = async (id: string, name: string) => {
+    try {
+      await deleteInternNameRecord(id);
+      toast.success(`Intern "${name}" deleted!`);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete intern');
+    }
+  };
+
   return (
     <div className="space-y-6">
+      {/* Manage Intern Names */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5 text-primary" />
+            Manage Intern Names
+          </CardTitle>
+          <CardDescription>
+            Add intern names that will appear on the Intern Login page for quick selection
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Add New Intern Form */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1">
+              <Input
+                placeholder="Enter intern name"
+                value={newInternName}
+                onChange={(e) => setNewInternName(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <Palette className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Color:</span>
+              </div>
+              <div className="flex gap-1.5">
+                {INTERN_COLORS.map((color) => (
+                  <button
+                    key={color.value}
+                    type="button"
+                    className={`w-6 h-6 rounded-full border-2 transition-all ${
+                      selectedColor === color.value
+                        ? 'border-foreground scale-110'
+                        : 'border-transparent hover:scale-105'
+                    }`}
+                    style={{ backgroundColor: color.value }}
+                    onClick={() => setSelectedColor(color.value)}
+                    title={color.name}
+                  />
+                ))}
+              </div>
+            </div>
+            <Button onClick={handleAddInternName} disabled={!newInternName.trim()}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Intern
+            </Button>
+          </div>
+
+          {/* Existing Interns */}
+          {internNames.length === 0 ? (
+            <div className="text-center py-6 px-4">
+              <div className="mx-auto w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mb-3">
+                <Users className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground">No interns added yet</p>
+              <p className="text-xs text-muted-foreground mt-1">Add intern names above to enable quick selection on Intern Login</p>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {internNames.map((intern) => (
+                editingIntern?.id === intern.id ? (
+                  <div key={intern.id} className="flex items-center gap-2 p-2 bg-muted/30 rounded-lg border">
+                    <Input
+                      value={editingIntern.name}
+                      onChange={(e) => setEditingIntern({ ...editingIntern, name: e.target.value })}
+                      className="h-8 w-32"
+                      autoFocus
+                    />
+                    <div className="flex gap-1">
+                      {INTERN_COLORS.map((color) => (
+                        <button
+                          key={color.value}
+                          type="button"
+                          className={`w-5 h-5 rounded-full border-2 transition-all ${
+                            editingIntern.color === color.value
+                              ? 'border-foreground scale-110'
+                              : 'border-transparent'
+                          }`}
+                          style={{ backgroundColor: color.value }}
+                          onClick={() => setEditingIntern({ ...editingIntern, color: color.value })}
+                        />
+                      ))}
+                    </div>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleUpdateInternName}>
+                      <Save className="h-3 w-3 text-emerald-600" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingIntern(null)}>
+                      <X className="h-3 w-3 text-muted-foreground" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div
+                    key={intern.id}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg border group hover:shadow-sm transition-all"
+                    style={{ backgroundColor: `${intern.color}15`, borderColor: `${intern.color}40` }}
+                  >
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: intern.color }}
+                    />
+                    <span className="font-medium text-sm">{intern.name}</span>
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={() => setEditingIntern({ id: intern.id, name: intern.name, color: intern.color })}
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive">
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete "{intern.name}"?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will remove this intern from the quick selection list. This won't affect existing session records.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              onClick={() => handleDeleteInternName(intern.id, intern.name)}
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+                )
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Create New Dropdown */}
       <Card className="border-border/50">
         <CardHeader>

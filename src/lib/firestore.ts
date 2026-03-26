@@ -1,25 +1,27 @@
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  deleteDoc, 
+import {
+  collection,
+  doc,
+  setDoc,
+  deleteDoc,
   onSnapshot,
   writeBatch,
   Timestamp,
   DocumentData
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Client, DropdownField, Note, InternSession, LeadStatusSnapshot } from '@/types/client';
+import { Client, DropdownField, Note, InternSession, LeadStatusSnapshot, InternName } from '@/types/client';
 
 // Helper to get user-specific collection path
 const getUserClientsCollection = (userId: string) => `users/${userId}/clients`;
 const getUserDropdownsCollection = (userId: string) => `users/${userId}/dropdowns`;
 const getUserInternSessionsCollection = (userId: string) => `users/${userId}/internSessions`;
+const getUserInternNamesCollection = (userId: string) => `users/${userId}/internNames`;
 
 // Legacy collection references (for backward compatibility with existing data)
 const LEGACY_CLIENTS_COLLECTION = 'clients';
 const LEGACY_DROPDOWNS_COLLECTION = 'dropdowns';
 const LEGACY_INTERN_SESSIONS_COLLECTION = 'internSessions';
+const LEGACY_INTERN_NAMES_COLLECTION = 'internNames';
 
 // Legacy user ID - this user uses the old collection structure
 const LEGACY_USER_ID = 'anandtravelagency';
@@ -50,6 +52,15 @@ const getInternSessionsCollectionPath = (userId?: string): string => {
   }
   // New users get user-specific collections
   return getUserInternSessionsCollection(userId);
+};
+
+const getInternNamesCollectionPath = (userId?: string): string => {
+  // If no userId or legacy user, use legacy collection
+  if (!userId || userId === LEGACY_USER_ID) {
+    return LEGACY_INTERN_NAMES_COLLECTION;
+  }
+  // New users get user-specific collections
+  return getUserInternNamesCollection(userId);
 };
 
 // Convert Date to Firestore Timestamp
@@ -297,7 +308,7 @@ export const subscribeToInternSessions = (
 ) => {
   const collectionPath = getInternSessionsCollectionPath(userId);
   const sessionsRef = collection(db, collectionPath);
-  
+
   return onSnapshot(
     sessionsRef,
     (snapshot) => {
@@ -311,6 +322,71 @@ export const subscribeToInternSessions = (
     },
     (error) => {
       console.error('Error subscribing to intern sessions:', error);
+      onError?.(error);
+    }
+  );
+};
+
+// Intern Names operations
+
+// Convert InternName to Firestore format
+const internNameToFirestore = (internName: InternName): DocumentData => {
+  return {
+    id: internName.id,
+    name: internName.name,
+    color: internName.color,
+    createdAt: dateToTimestamp(internName.createdAt),
+    isActive: internName.isActive,
+    manualSlotBooked: internName.manualSlotBooked || 0
+  };
+};
+
+// Convert Firestore document to InternName
+const firestoreToInternName = (data: DocumentData): InternName => {
+  return {
+    id: data.id,
+    name: data.name,
+    color: data.color,
+    createdAt: timestampToDate(data.createdAt),
+    isActive: data.isActive ?? true,
+    manualSlotBooked: data.manualSlotBooked || 0
+  };
+};
+
+export const saveInternName = async (internName: InternName, userId?: string): Promise<void> => {
+  const collectionPath = getInternNamesCollectionPath(userId);
+  const internNameRef = doc(db, collectionPath, internName.id);
+  await setDoc(internNameRef, internNameToFirestore(internName));
+};
+
+export const deleteInternName = async (internNameId: string, userId?: string): Promise<void> => {
+  const collectionPath = getInternNamesCollectionPath(userId);
+  const internNameRef = doc(db, collectionPath, internNameId);
+  await deleteDoc(internNameRef);
+};
+
+// Subscribe to intern names collection
+export const subscribeToInternNames = (
+  onInternNamesChange: (internNames: InternName[]) => void,
+  onError?: (error: Error) => void,
+  userId?: string
+) => {
+  const collectionPath = getInternNamesCollectionPath(userId);
+  const internNamesRef = collection(db, collectionPath);
+
+  return onSnapshot(
+    internNamesRef,
+    (snapshot) => {
+      const internNames: InternName[] = [];
+      snapshot.forEach((doc) => {
+        internNames.push(firestoreToInternName(doc.data()));
+      });
+      // Sort by name
+      internNames.sort((a, b) => a.name.localeCompare(b.name));
+      onInternNamesChange(internNames);
+    },
+    (error) => {
+      console.error('Error subscribing to intern names:', error);
       onError?.(error);
     }
   );

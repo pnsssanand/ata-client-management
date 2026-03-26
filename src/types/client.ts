@@ -58,3 +58,13 @@ export interface InternSession {
   isActive: boolean;
   createdAt: Date;
 }
+
+// Intern name configuration (managed by admin)
+export interface InternName {
+  id: string;
+  name: string;
+  color: string; // Hex color for the card
+  createdAt: Date;
+  isActive: boolean;
+  manualSlotBooked?: number; // Manual slot booked count (editable by admin)
+}

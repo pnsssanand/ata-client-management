@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, memo } from 'react';
+import { useState, useCallback, useEffect, useRef, memo, useTransition } from 'react';
 import { 
   Phone, 
   MessageCircle, 
@@ -38,89 +38,125 @@ import { toast } from 'sonner';
 
 // Status color configuration - DTS style
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string; dot: string }> = {
-  'Not Called': { 
-    bg: 'bg-slate-100 dark:bg-slate-800', 
-    text: 'text-slate-600 dark:text-slate-300', 
+  'Not Called': {
+    bg: 'bg-slate-100 dark:bg-slate-800',
+    text: 'text-slate-600 dark:text-slate-300',
     border: 'border-slate-200 dark:border-slate-700',
     dot: 'bg-slate-500'
   },
-  'Answered': { 
-    bg: 'bg-emerald-50 dark:bg-emerald-900/30', 
-    text: 'text-emerald-600 dark:text-emerald-400', 
+  'Answered': {
+    bg: 'bg-emerald-50 dark:bg-emerald-900/30',
+    text: 'text-emerald-600 dark:text-emerald-400',
     border: 'border-emerald-200 dark:border-emerald-800',
     dot: 'bg-emerald-500'
   },
-  'Not answered': { 
-    bg: 'bg-yellow-50 dark:bg-yellow-900/30', 
-    text: 'text-yellow-600 dark:text-yellow-400', 
+  'Not answered': {
+    bg: 'bg-yellow-50 dark:bg-yellow-900/30',
+    text: 'text-yellow-600 dark:text-yellow-400',
     border: 'border-yellow-200 dark:border-yellow-800',
     dot: 'bg-yellow-500'
   },
-  'Call Later': { 
-    bg: 'bg-blue-50 dark:bg-blue-900/30', 
-    text: 'text-blue-600 dark:text-blue-400', 
+  'Call Later': {
+    bg: 'bg-blue-50 dark:bg-blue-900/30',
+    text: 'text-blue-600 dark:text-blue-400',
     border: 'border-blue-200 dark:border-blue-800',
     dot: 'bg-blue-500'
   },
-  'Not Interested': { 
-    bg: 'bg-red-50 dark:bg-red-900/30', 
-    text: 'text-red-600 dark:text-red-400', 
+  'Not Interested': {
+    bg: 'bg-red-50 dark:bg-red-900/30',
+    text: 'text-red-600 dark:text-red-400',
     border: 'border-red-200 dark:border-red-800',
     dot: 'bg-red-500'
   },
-  'Converted': { 
-    bg: 'bg-emerald-50 dark:bg-emerald-900/30', 
-    text: 'text-emerald-600 dark:text-emerald-400', 
+  'Converted': {
+    bg: 'bg-emerald-50 dark:bg-emerald-900/30',
+    text: 'text-emerald-600 dark:text-emerald-400',
     border: 'border-emerald-200 dark:border-emerald-800',
     dot: 'bg-emerald-500'
   },
-  'Hot Lead': { 
-    bg: 'bg-red-50 dark:bg-red-900/30', 
-    text: 'text-red-600 dark:text-red-400', 
+  'Hot Lead': {
+    bg: 'bg-red-50 dark:bg-red-900/30',
+    text: 'text-red-600 dark:text-red-400',
     border: 'border-red-200 dark:border-red-800',
     dot: 'bg-red-500'
   },
-  'Warm Lead': { 
-    bg: 'bg-orange-50 dark:bg-orange-900/30', 
-    text: 'text-orange-600 dark:text-orange-400', 
+  'Warm Lead': {
+    bg: 'bg-orange-50 dark:bg-orange-900/30',
+    text: 'text-orange-600 dark:text-orange-400',
     border: 'border-orange-200 dark:border-orange-800',
     dot: 'bg-orange-500'
   },
-  'Cold Lead': { 
-    bg: 'bg-slate-50 dark:bg-slate-800', 
-    text: 'text-slate-600 dark:text-slate-300', 
+  'Cold Lead': {
+    bg: 'bg-slate-50 dark:bg-slate-800',
+    text: 'text-slate-600 dark:text-slate-300',
     border: 'border-slate-200 dark:border-slate-700',
     dot: 'bg-slate-400'
   },
-  'New Lead': { 
-    bg: 'bg-purple-50 dark:bg-purple-900/30', 
-    text: 'text-purple-600 dark:text-purple-400', 
+  'New Lead': {
+    bg: 'bg-purple-50 dark:bg-purple-900/30',
+    text: 'text-purple-600 dark:text-purple-400',
     border: 'border-purple-200 dark:border-purple-800',
     dot: 'bg-purple-500'
   },
-  'Installed': { 
-    bg: 'bg-violet-50 dark:bg-violet-900/30', 
-    text: 'text-violet-600 dark:text-violet-400', 
+  'Installed': {
+    bg: 'bg-violet-50 dark:bg-violet-900/30',
+    text: 'text-violet-600 dark:text-violet-400',
     border: 'border-violet-200 dark:border-violet-800',
     dot: 'bg-violet-500'
   },
-  'App Installed': { 
-    bg: 'bg-violet-50 dark:bg-violet-900/30', 
-    text: 'text-violet-600 dark:text-violet-400', 
+  'App Installed': {
+    bg: 'bg-violet-50 dark:bg-violet-900/30',
+    text: 'text-violet-600 dark:text-violet-400',
     border: 'border-violet-200 dark:border-violet-800',
     dot: 'bg-violet-500'
   },
-  'App user': { 
-    bg: 'bg-indigo-50 dark:bg-indigo-900/30', 
-    text: 'text-indigo-600 dark:text-indigo-400', 
+  'App user': {
+    bg: 'bg-indigo-50 dark:bg-indigo-900/30',
+    text: 'text-indigo-600 dark:text-indigo-400',
     border: 'border-indigo-200 dark:border-indigo-800',
     dot: 'bg-indigo-500'
   },
-  'Lost': { 
-    bg: 'bg-gray-100 dark:bg-gray-800', 
-    text: 'text-gray-500 dark:text-gray-400', 
+  'Lost': {
+    bg: 'bg-gray-100 dark:bg-gray-800',
+    text: 'text-gray-500 dark:text-gray-400',
     border: 'border-gray-200 dark:border-gray-700',
     dot: 'bg-gray-400'
+  },
+  'Slot Booked': {
+    bg: 'bg-teal-50 dark:bg-teal-900/30',
+    text: 'text-teal-600 dark:text-teal-400',
+    border: 'border-teal-200 dark:border-teal-800',
+    dot: 'bg-teal-500'
+  },
+  'Hindi': {
+    bg: 'bg-amber-50 dark:bg-amber-900/30',
+    text: 'text-amber-600 dark:text-amber-400',
+    border: 'border-amber-200 dark:border-amber-800',
+    dot: 'bg-amber-500'
+  },
+  'Follow Up': {
+    bg: 'bg-sky-50 dark:bg-sky-900/30',
+    text: 'text-sky-600 dark:text-sky-400',
+    border: 'border-sky-200 dark:border-sky-800',
+    dot: 'bg-sky-500'
+  },
+  'Busy': {
+    bg: 'bg-orange-50 dark:bg-orange-900/30',
+    text: 'text-orange-600 dark:text-orange-400',
+    border: 'border-orange-200 dark:border-orange-800',
+    dot: 'bg-orange-500'
+  },
+  'Wrong Number': {
+    bg: 'bg-rose-50 dark:bg-rose-900/30',
+    text: 'text-rose-600 dark:text-rose-400',
+    border: 'border-rose-200 dark:border-rose-800',
+    dot: 'bg-rose-500'
+  },
+  'DND': {
+    bg: 'bg-gray-50 dark:bg-gray-900/30',
+    text: 'text-gray-600 dark:text-gray-400',
+    border: 'border-gray-200 dark:border-gray-800',
+    dot: 'bg-gray-500'
   },
 };
 
@@ -148,7 +184,8 @@ export const ClientCardNew = memo(function ClientCardNew({ client, isSelected }:
   const [optimisticStatus, setOptimisticStatus] = useState<string | null>(null);
   const isUpdatingRef = useRef(false);      // ref mirror — stable across renders
   const safetyTimerRef = useRef<number | null>(null); // force-reset if API hangs
-  
+  const [, startTransition] = useTransition(); // For non-blocking status updates
+
   const { dropdowns, updateDropdownValue, addNote } = useClientStore();
 
   // Get lead status dropdown options
@@ -180,12 +217,10 @@ export const ClientCardNew = memo(function ClientCardNew({ client, isSelected }:
         setStatusMenuOpen(false);
       }
     };
-    const id = window.setTimeout(() => {
-      document.addEventListener('mousedown', handleOutside, { passive: true });
-      document.addEventListener('touchstart', handleOutside, { passive: true });
-    }, 50);
+    // Immediate attachment for faster response
+    document.addEventListener('mousedown', handleOutside, { passive: true });
+    document.addEventListener('touchstart', handleOutside, { passive: true });
     return () => {
-      window.clearTimeout(id);
       document.removeEventListener('mousedown', handleOutside);
       document.removeEventListener('touchstart', handleOutside);
     };
@@ -209,16 +244,21 @@ export const ClientCardNew = memo(function ClientCardNew({ client, isSelected }:
 
   const openStatusMenu = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isUpdatingRef.current) return; // use ref — no stale closure, no re-creation
+    if (isUpdatingRef.current) return;
+    // Calculate position synchronously and immediately open menu
     const rect = statusRef.current?.getBoundingClientRect();
     if (rect) {
-      setStatusMenuPos({
-        top: rect.bottom + 4,
-        right: window.innerWidth - rect.right,
+      // Use startTransition to keep menu opening instant while calculation happens
+      startTransition(() => {
+        setStatusMenuPos({
+          top: rect.bottom + 4,
+          right: window.innerWidth - rect.right,
+        });
       });
     }
+    // Open menu immediately without waiting for position calculation
     setStatusMenuOpen(prev => !prev);
-  }, []); // stable forever — reads ref, not state
+  }, [startTransition]);
 
   const handleCall = useCallback(() => {
     const cleanPhone = client.phone.replace(/[\s\-\(\)]/g, '');
@@ -284,21 +324,28 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
       setStatusMenuOpen(false);
       return;
     }
-    isUpdatingRef.current = true;
-    setIsUpdatingStatus(true);
-    setOptimisticStatus(newStatus);
+
+    // Close menu IMMEDIATELY
     setStatusMenuOpen(false);
 
-    // Safety net: force-reset after 8s if API hangs
+    // Set optimistic status instantly without blocking UI
+    setOptimisticStatus(newStatus);
+    isUpdatingRef.current = true;
+    setIsUpdatingStatus(true);
+
+    // Safety net: force-reset after 5s if API hangs
     if (safetyTimerRef.current) window.clearTimeout(safetyTimerRef.current);
     safetyTimerRef.current = window.setTimeout(() => {
       isUpdatingRef.current = false;
       setIsUpdatingStatus(false);
       safetyTimerRef.current = null;
-    }, 8000);
+    }, 5000);
 
     try {
-      await updateDropdownValue(client.id, 'Lead Status', newStatus);
+      // Update in background without blocking UI
+      startTransition(async () => {
+        await updateDropdownValue(client.id, 'Lead Status', newStatus);
+      });
       toast.success(`Status updated to "${newStatus}"`, { duration: 1500 });
     } catch (error) {
       setOptimisticStatus(null);
@@ -365,7 +412,7 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
                 disabled={isUpdatingStatus}
                 className={cn(
                   "inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl font-semibold text-[11px] sm:text-xs border-2",
-                  "cursor-pointer transition-all duration-300 select-none touch-manipulation shadow-sm",
+                  "cursor-pointer transition-all duration-100 select-none touch-manipulation shadow-sm",
                   "hover:ring-2 hover:ring-primary/30 hover:shadow-md active:scale-95",
                   statusColors.bg,
                   statusColors.text,
@@ -384,7 +431,7 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
                     <span className={cn("w-2 h-2 rounded-full shrink-0 shadow-sm", statusColors.dot)} />
                     <span className="truncate max-w-[90px] sm:max-w-none">{displayStatus || 'Set Status'}</span>
                     <ChevronDown className={cn(
-                      "h-3 w-3 sm:h-3.5 sm:w-3.5 opacity-70 shrink-0 transition-transform duration-300",
+                      "h-3 w-3 sm:h-3.5 sm:w-3.5 opacity-70 shrink-0 transition-transform duration-100",
                       statusMenuOpen && "rotate-180"
                     )} />
                   </>
@@ -400,7 +447,7 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
                     right: statusMenuPos.right,
                     zIndex: 9999,
                   }}
-                  className="w-56 py-2 px-2 rounded-2xl shadow-2xl bg-popover/95 backdrop-blur-md border border-border/50 animate-in fade-in-0 zoom-in-95 slide-in-from-top-3 duration-300"
+                  className="w-56 py-2 px-2 rounded-2xl shadow-2xl bg-popover/95 backdrop-blur-md border border-border/50 animate-in fade-in-0 zoom-in-95 duration-100"
                 >
                   <p className="text-xs font-bold text-muted-foreground/80 uppercase tracking-wide px-3 py-2 border-b mb-1.5">
                     Update Status
@@ -415,10 +462,10 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
                           onClick={(e) => { e.stopPropagation(); handleStatusChange(status); }}
                           disabled={isUpdatingStatus}
                           className={cn(
-                            "w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 touch-manipulation",
+                            "w-full flex items-center justify-between px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-100 touch-manipulation",
                             displayStatus === status
-                              ? "bg-primary/15 text-primary shadow-sm scale-[0.98]"
-                              : "hover:bg-muted/80 hover:scale-[0.98] active:scale-95"
+                              ? "bg-primary/15 text-primary shadow-sm"
+                              : "hover:bg-muted/80 active:scale-95"
                           )}
                         >
                           <span className="flex items-center gap-2.5">

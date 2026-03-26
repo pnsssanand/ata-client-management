@@ -1,15 +1,18 @@
 import { create } from 'zustand';
-import { Client, DropdownField, User, InternSession, LeadStatusSnapshot } from '@/types/client';
-import { 
-  saveClient, 
-  deleteClientFromFirestore, 
+import { Client, DropdownField, User, InternSession, LeadStatusSnapshot, InternName } from '@/types/client';
+import {
+  saveClient,
+  deleteClientFromFirestore,
   subscribeToClients,
   saveDropdown,
   deleteDropdownFromFirestore,
   subscribeToDropdowns,
   saveInternSession,
   deleteInternSession,
-  subscribeToInternSessions
+  subscribeToInternSessions,
+  saveInternName,
+  deleteInternName,
+  subscribeToInternNames
 } from '@/lib/firestore';
 
 // Debounce utility for optimizing frequent updates
@@ -31,7 +34,8 @@ interface ClientStore {
   clients: Client[];
   dropdowns: DropdownField[];
   internSessions: InternSession[];
-  activeInternSession: InternSession | null;
+  activeInternSessions: InternSession[];
+  internNames: InternName[];
   searchQuery: string;
   filterStatus: string;
   filterPriority: string;
@@ -45,6 +49,7 @@ interface ClientStore {
   unsubscribeClients: (() => void) | null;
   unsubscribeDropdowns: (() => void) | null;
   unsubscribeInternSessions: (() => void) | null;
+  unsubscribeInternNames: (() => void) | null;
   setSearchQuery: (query: string) => void;
   setFilterStatus: (status: string) => void;
   setFilterPriority: (priority: string) => void;
@@ -69,14 +74,20 @@ interface ClientStore {
   startInternSession: (internName: string, loginTime: string) => Promise<void>;
   endInternSession: (sessionId: string, logoutTime: string) => Promise<void>;
   deleteInternSessionRecord: (sessionId: string) => Promise<void>;
+  deleteMultipleInternSessions: (sessionIds: string[]) => Promise<void>;
   getLeadStatusSnapshot: () => LeadStatusSnapshot[];
+  // Intern name methods
+  addInternName: (name: string, color: string) => Promise<void>;
+  updateInternName: (id: string, updates: Partial<InternName>) => Promise<void>;
+  deleteInternNameRecord: (id: string) => Promise<void>;
 }
 
 export const useClientStore = create<ClientStore>()((set, get) => ({
   clients: [],
   dropdowns: [],
   internSessions: [],
-  activeInternSession: null,
+  activeInternSessions: [],
+  internNames: [],
   searchQuery: '',
   filterStatus: 'all',
   filterPriority: 'all',
@@ -90,6 +101,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   unsubscribeClients: null,
   unsubscribeDropdowns: null,
   unsubscribeInternSessions: null,
+  unsubscribeInternNames: null,
   
   setSearchQuery: (query) => set({ searchQuery: query }),
   setFilterStatus: (status) => set({ filterStatus: status }),
@@ -97,18 +109,19 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   setFilterCallOutcome: (callOutcome) => set({ filterCallOutcome: callOutcome }),
   
   initializeFirebase: (userId?: string) => {
-    const { isInitialized, unsubscribeClients, unsubscribeDropdowns, unsubscribeInternSessions } = get();
-    
+    const { isInitialized, unsubscribeClients, unsubscribeDropdowns, unsubscribeInternSessions, unsubscribeInternNames } = get();
+
     if (isInitialized) return;
-    
+
     // Store the userId for later use in save/delete operations
     set({ currentUserId: userId || null });
-    
+
     // Clean up existing subscriptions
     if (unsubscribeClients) unsubscribeClients();
     if (unsubscribeDropdowns) unsubscribeDropdowns();
     if (unsubscribeInternSessions) unsubscribeInternSessions();
-    
+    if (unsubscribeInternNames) unsubscribeInternNames();
+
     // Subscribe to clients (pass userId to use user-specific collection)
     const clientsUnsub = subscribeToClients(
       (clients) => {
@@ -120,7 +133,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       },
       userId
     );
-    
+
     // Default dropdown configurations for new users
     const defaultDropdowns: DropdownField[] = [
       {
@@ -138,7 +151,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
         createdAt: new Date()
       }
     ];
-    
+
     // Subscribe to dropdowns - initialize defaults if empty (for new users)
     let hasInitializedDefaults = false;
     const dropdownsUnsub = subscribeToDropdowns(
@@ -165,44 +178,59 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       },
       userId
     );
-    
+
     // Subscribe to intern sessions
     const internSessionsUnsub = subscribeToInternSessions(
       (sessions) => {
-        const activeSession = sessions.find(s => s.isActive);
-        set({ internSessions: sessions, activeInternSession: activeSession || null });
+        const activeSessions = sessions.filter(s => s.isActive);
+        set({ internSessions: sessions, activeInternSessions: activeSessions });
       },
       (error) => {
         console.error('Intern sessions subscription error:', error);
       },
       userId
     );
-    
-    set({ 
-      isInitialized: true, 
+
+    // Subscribe to intern names
+    const internNamesUnsub = subscribeToInternNames(
+      (internNames) => {
+        set({ internNames });
+      },
+      (error) => {
+        console.error('Intern names subscription error:', error);
+      },
+      userId
+    );
+
+    set({
+      isInitialized: true,
       unsubscribeClients: clientsUnsub,
       unsubscribeDropdowns: dropdownsUnsub,
-      unsubscribeInternSessions: internSessionsUnsub
+      unsubscribeInternSessions: internSessionsUnsub,
+      unsubscribeInternNames: internNamesUnsub
     });
   },
-  
+
   cleanup: () => {
-    const { unsubscribeClients, unsubscribeDropdowns, unsubscribeInternSessions } = get();
+    const { unsubscribeClients, unsubscribeDropdowns, unsubscribeInternSessions, unsubscribeInternNames } = get();
     if (unsubscribeClients) unsubscribeClients();
     if (unsubscribeDropdowns) unsubscribeDropdowns();
     if (unsubscribeInternSessions) unsubscribeInternSessions();
-    set({ 
+    if (unsubscribeInternNames) unsubscribeInternNames();
+    set({
       clients: [],
       dropdowns: [],
       internSessions: [],
-      activeInternSession: null,
+      activeInternSessions: [],
+      internNames: [],
       currentUserId: null,
-      isInitialized: false, 
+      isInitialized: false,
       isLoading: true,
       isSynced: false,
-      unsubscribeClients: null, 
+      unsubscribeClients: null,
       unsubscribeDropdowns: null,
-      unsubscribeInternSessions: null
+      unsubscribeInternSessions: null,
+      unsubscribeInternNames: null
     });
   },
   
@@ -568,33 +596,56 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     const { clients, dropdowns } = get();
     const leadStatusDropdown = dropdowns.find(d => d.name === 'Lead Status');
     const statusOptions = leadStatusDropdown?.options || [];
-    
+
     // Count clients per status
     const statusCounts = clients.reduce((acc, client) => {
       const status = client.status || 'Unknown';
       acc[status] = (acc[status] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
-    
-    // Create snapshot with all status options
-    return statusOptions.map(status => ({
-      status,
-      count: statusCounts[status] || 0
-    }));
+
+    // Collect all unique statuses (from options AND from actual client statuses)
+    const allStatuses = new Set<string>([
+      ...statusOptions,
+      ...Object.keys(statusCounts)
+    ]);
+
+    // Create snapshot with ALL statuses (ordered: dropdown options first, then others)
+    const snapshot: LeadStatusSnapshot[] = [];
+
+    // Add dropdown options first (in order)
+    statusOptions.forEach(status => {
+      snapshot.push({
+        status,
+        count: statusCounts[status] || 0
+      });
+    });
+
+    // Add any statuses that exist in clients but not in dropdown options
+    Object.keys(statusCounts).forEach(status => {
+      if (!statusOptions.includes(status)) {
+        snapshot.push({
+          status,
+          count: statusCounts[status]
+        });
+      }
+    });
+
+    return snapshot;
   },
 
   startInternSession: async (internName, loginTime) => {
     const { currentUserId, getLeadStatusSnapshot, internSessions } = get();
-    
-    // Check if there's already an active session
-    const existingActive = internSessions.find(s => s.isActive);
+
+    // Check if this specific intern already has an active session
+    const existingActive = internSessions.find(s => s.isActive && s.internName.toLowerCase() === internName.toLowerCase());
     if (existingActive) {
-      throw new Error('There is already an active session. Please end the current session first.');
+      throw new Error(`${internName} already has an active session. Please end it first.`);
     }
 
     const sessionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const entryLeadStatuses = getLeadStatusSnapshot();
-    
+
     const newSession: InternSession = {
       id: sessionId,
       internName,
@@ -604,13 +655,13 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       isActive: true,
       createdAt: new Date()
     };
-    
+
     // Optimistically update local state
-    set((state) => ({ 
+    set((state) => ({
       internSessions: [newSession, ...state.internSessions],
-      activeInternSession: newSession
+      activeInternSessions: [newSession, ...state.activeInternSessions]
     }));
-    
+
     try {
       await saveInternSession(newSession, currentUserId || undefined);
     } catch (error) {
@@ -618,7 +669,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       // Rollback
       set((state) => ({
         internSessions: state.internSessions.filter(s => s.id !== sessionId),
-        activeInternSession: null
+        activeInternSessions: state.activeInternSessions.filter(s => s.id !== sessionId)
       }));
       throw error;
     }
@@ -628,13 +679,13 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     const { internSessions, currentUserId, getLeadStatusSnapshot } = get();
     const session = internSessions.find(s => s.id === sessionId);
     if (!session) return;
-    
+
     const exitLeadStatuses = getLeadStatusSnapshot();
-    
+
     // Calculate conversions (changes in lead status counts)
     const conversions: Record<string, number> = {};
     let totalCallsMade = 0;
-    
+
     session.entryLeadStatuses.forEach(entry => {
       const exitStatus = exitLeadStatuses.find(e => e.status === entry.status);
       const exitCount = exitStatus?.count || 0;
@@ -645,7 +696,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
         totalCallsMade += Math.abs(change);
       }
     });
-    
+
     // Also check for any new statuses at exit that weren't in entry
     exitLeadStatuses.forEach(exit => {
       if (!conversions.hasOwnProperty(exit.status)) {
@@ -653,10 +704,10 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
         totalCallsMade += Math.abs(exit.count);
       }
     });
-    
+
     // Total calls made is approximately half of total movements (since each call moves a lead from one status to another)
     totalCallsMade = Math.ceil(totalCallsMade / 2);
-    
+
     const updatedSession: InternSession = {
       ...session,
       logoutTime,
@@ -665,13 +716,13 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       totalCallsMade,
       isActive: false
     };
-    
+
     // Optimistically update
     set((state) => ({
       internSessions: state.internSessions.map(s => s.id === sessionId ? updatedSession : s),
-      activeInternSession: null
+      activeInternSessions: state.activeInternSessions.filter(s => s.id !== sessionId)
     }));
-    
+
     try {
       await saveInternSession(updatedSession, currentUserId || undefined);
     } catch (error) {
@@ -679,27 +730,27 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       // Rollback
       set((state) => ({
         internSessions: state.internSessions.map(s => s.id === sessionId ? session : s),
-        activeInternSession: session
+        activeInternSessions: [...state.activeInternSessions, session]
       }));
       throw error;
     }
   },
 
   deleteInternSessionRecord: async (sessionId) => {
-    const { internSessions, currentUserId, activeInternSession } = get();
+    const { internSessions, currentUserId } = get();
     const session = internSessions.find(s => s.id === sessionId);
     if (!session) return;
-    
+
     // Don't allow deleting active sessions
     if (session.isActive) {
       throw new Error('Cannot delete an active session. Please end the session first.');
     }
-    
+
     // Optimistically update
     set((state) => ({
       internSessions: state.internSessions.filter(s => s.id !== sessionId)
     }));
-    
+
     try {
       await deleteInternSession(sessionId, currentUserId || undefined);
     } catch (error) {
@@ -707,6 +758,115 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       // Rollback
       set((state) => ({
         internSessions: [...state.internSessions, session]
+      }));
+      throw error;
+    }
+  },
+
+  deleteMultipleInternSessions: async (sessionIds) => {
+    const { internSessions, currentUserId } = get();
+    const sessionsToDelete = internSessions.filter(s => sessionIds.includes(s.id));
+
+    // Check if any session is active
+    const activeSessions = sessionsToDelete.filter(s => s.isActive);
+    if (activeSessions.length > 0) {
+      throw new Error('Cannot delete active sessions. Please end them first.');
+    }
+
+    // Optimistically update
+    set((state) => ({
+      internSessions: state.internSessions.filter(s => !sessionIds.includes(s.id))
+    }));
+
+    try {
+      await Promise.all(sessionIds.map(id => deleteInternSession(id, currentUserId || undefined)));
+    } catch (error) {
+      console.error('Error deleting intern sessions:', error);
+      // Rollback
+      set((state) => ({
+        internSessions: [...state.internSessions, ...sessionsToDelete]
+      }));
+      throw error;
+    }
+  },
+
+  // Intern name methods
+  addInternName: async (name, color) => {
+    const { currentUserId, internNames } = get();
+
+    // Check if intern name already exists
+    const existing = internNames.find(i => i.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      throw new Error(`Intern "${name}" already exists`);
+    }
+
+    const internNameId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newInternName: InternName = {
+      id: internNameId,
+      name,
+      color,
+      createdAt: new Date(),
+      isActive: true
+    };
+
+    // Optimistically update
+    set((state) => ({
+      internNames: [...state.internNames, newInternName]
+    }));
+
+    try {
+      await saveInternName(newInternName, currentUserId || undefined);
+    } catch (error) {
+      console.error('Error adding intern name:', error);
+      // Rollback
+      set((state) => ({
+        internNames: state.internNames.filter(i => i.id !== internNameId)
+      }));
+      throw error;
+    }
+  },
+
+  updateInternName: async (id, updates) => {
+    const { internNames, currentUserId } = get();
+    const internName = internNames.find(i => i.id === id);
+    if (!internName) return;
+
+    const updatedInternName = { ...internName, ...updates };
+
+    // Optimistically update
+    set((state) => ({
+      internNames: state.internNames.map(i => i.id === id ? updatedInternName : i)
+    }));
+
+    try {
+      await saveInternName(updatedInternName, currentUserId || undefined);
+    } catch (error) {
+      console.error('Error updating intern name:', error);
+      // Rollback
+      set((state) => ({
+        internNames: state.internNames.map(i => i.id === id ? internName : i)
+      }));
+      throw error;
+    }
+  },
+
+  deleteInternNameRecord: async (id) => {
+    const { internNames, currentUserId } = get();
+    const internName = internNames.find(i => i.id === id);
+    if (!internName) return;
+
+    // Optimistically update
+    set((state) => ({
+      internNames: state.internNames.filter(i => i.id !== id)
+    }));
+
+    try {
+      await deleteInternName(id, currentUserId || undefined);
+    } catch (error) {
+      console.error('Error deleting intern name:', error);
+      // Rollback
+      set((state) => ({
+        internNames: [...state.internNames, internName]
       }));
       throw error;
     }
