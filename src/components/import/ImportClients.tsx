@@ -10,8 +10,8 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 
-// Mobile users can upload up to 2000 contacts, desktop limited to 500 for paste
-const MAX_MOBILE_IMPORT_LIMIT = 2000;
+// Mobile users can upload up to 3000 contacts, desktop limited to 500 for paste
+const MAX_MOBILE_IMPORT_LIMIT = 3000;
 const MAX_PASTE_IMPORT_LIMIT = 500;
 
 // Normalize phone number for comparison (remove all non-digit characters except +)
@@ -190,7 +190,7 @@ export function ImportClients() {
         return;
       }
 
-      // Use mobile limit for file uploads (2000), since this is the main mobile upload feature
+      // Use mobile limit for file uploads (3000), since this is the main mobile upload feature
       await processImportData(data, MAX_MOBILE_IMPORT_LIMIT);
     } catch (error) {
       console.error('Error parsing file:', error);
