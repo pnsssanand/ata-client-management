@@ -11,6 +11,13 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
 
+// Helper to get default lead status from dropdown configuration
+const getDefaultLeadStatus = (dropdowns: any[]) => {
+  const leadStatusDropdown = dropdowns.find((d: any) => d.name === 'Lead Status');
+  // Return first option or fallback to 'New Lead'
+  return leadStatusDropdown?.options?.[0] || 'New Lead';
+};
+
 // Mobile users can upload up to 3000 contacts, desktop limited to 500 for paste
 const MAX_MOBILE_IMPORT_LIMIT = 3000;
 const MAX_PASTE_IMPORT_LIMIT = 500;
@@ -31,18 +38,22 @@ export function ImportClients() {
     invalid: number;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { addClient, clients } = useClientStore();
+  const { addClient, clients, dropdowns } = useClientStore();
   const isMobile = useIsMobile();
+
+  // Get default lead status from dropdown configuration
+  const defaultLeadStatus = getDefaultLeadStatus(dropdowns);
 
   // Single contact import state
   const [singleContactName, setSingleContactName] = useState('');
   const [singleContactPhone, setSingleContactPhone] = useState('');
+  const [singleContactCompany, setSingleContactCompany] = useState('');
   const [isImportingSingle, setIsImportingSingle] = useState(false);
 
   // Get all existing phone numbers for duplicate detection
   const existingPhones = new Set(clients.map(c => normalizePhone(c.phone)));
 
-  const processImportData = async (data: { name: string; phone: string }[], maxLimit: number) => {
+  const processImportData = async (data: { name: string; phone: string; company?: string }[], maxLimit: number) => {
     if (data.length === 0) {
       toast.error('No valid entries found');
       return;
@@ -95,7 +106,8 @@ export function ImportClients() {
         await addClient({
           name: entry.name || rawPhone,
           phone: entry.phone,
-          status: 'New Lead',
+          company: entry.company, // Add business name if provided
+          status: defaultLeadStatus, // Use dynamic default from dropdown
           priority: 'Medium',
           followUpRequired: true,
         });
@@ -132,20 +144,20 @@ export function ImportClients() {
     }
   };
 
-  const parseExcelData = (workbook: XLSX.WorkBook): { name: string; phone: string }[] => {
+  const parseExcelData = (workbook: XLSX.WorkBook): { name: string; phone: string; company?: string }[] => {
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { header: 1 });
     
     if (jsonData.length === 0) return [];
 
-    const result: { name: string; phone: string }[] = [];
+    const result: { name: string; phone: string; company?: string }[] = [];
     
     // Check if first row is header
     const firstRow = jsonData[0] as unknown[];
     const hasHeader = firstRow && firstRow.some(cell => 
       typeof cell === 'string' && 
-      (cell.toLowerCase().includes('name') || cell.toLowerCase().includes('phone'))
+      (cell.toLowerCase().includes('name') || cell.toLowerCase().includes('phone') || cell.toLowerCase().includes('company') || cell.toLowerCase().includes('business'))
     );
     
     const startIndex = hasHeader ? 1 : 0;
@@ -156,20 +168,29 @@ export function ImportClients() {
       
       let name = '';
       let phone = '';
+      let company = '';
       
       if (row.length === 1) {
         // Only one column - assume it's phone
         phone = String(row[0] || '').trim();
         name = phone;
-      } else if (row.length >= 2) {
-        // Two or more columns - first is name, second is phone
+      } else if (row.length === 2) {
+        // Two columns - name and phone
         name = String(row[0] || '').trim();
         phone = String(row[1] || '').trim();
+        if (!name) name = phone;
+      } else if (row.length >= 3) {
+        // Three or more columns - name, phone, and business name
+        name = String(row[0] || '').trim();
+        phone = String(row[1] || '').trim();
+        company = String(row[2] || '').trim();
         if (!name) name = phone;
       }
       
       if (phone) {
-        result.push({ name, phone });
+        const entry: { name: string; phone: string; company?: string } = { name, phone };
+        if (company) entry.company = company;
+        result.push(entry);
       }
     }
     
@@ -227,24 +248,31 @@ export function ImportClients() {
     setImportStats(null);
 
     // Parse pasted data into the same format as Excel data
-    const parsedData: { name: string; phone: string }[] = [];
+    const parsedData: { name: string; phone: string; company?: string }[] = [];
     
     for (const line of lines) {
       const parts = line.split(/[,\t]/).map(p => p.trim());
       
       let name = '';
       let phone = '';
+      let company = '';
       
       if (parts.length === 1) {
         phone = parts[0];
         name = phone;
-      } else if (parts.length >= 2) {
+      } else if (parts.length === 2) {
         name = parts[0] || parts[1];
         phone = parts[1];
+      } else if (parts.length >= 3) {
+        name = parts[0] || parts[1];
+        phone = parts[1];
+        company = parts[2];
       }
       
       if (phone) {
-        parsedData.push({ name, phone });
+        const entry: { name: string; phone: string; company?: string } = { name, phone };
+        if (company) entry.company = company;
+        parsedData.push(entry);
       }
     }
 
@@ -282,7 +310,8 @@ export function ImportClients() {
       await addClient({
         name: singleContactName.trim(),
         phone: fullPhone,
-        status: 'New Lead',
+        company: singleContactCompany.trim() || undefined, // Add business name if provided
+        status: defaultLeadStatus, // Use dynamic default from dropdown
         priority: 'Medium',
         followUpRequired: true,
       });
@@ -290,6 +319,7 @@ export function ImportClients() {
       toast.success(`Contact "${singleContactName}" added successfully!`);
       setSingleContactName('');
       setSingleContactPhone('');
+      setSingleContactCompany('');
     } catch (error) {
       console.error('Error adding contact:', error);
       toast.error('Failed to add contact');
@@ -400,6 +430,15 @@ export function ImportClients() {
                 <p className="text-xs text-destructive">Must be exactly 10 digits</p>
               )}
             </div>
+            <div className="space-y-2 sm:col-span-2">
+              <label className="text-sm font-medium text-foreground">Business Name <span className="text-muted-foreground font-normal">(optional)</span></label>
+              <Input
+                placeholder="Enter business name (optional)"
+                value={singleContactCompany}
+                onChange={(e) => setSingleContactCompany(e.target.value)}
+                disabled={isImportingSingle}
+              />
+            </div>
           </div>
           <Button
             onClick={handleSingleContactImport}
@@ -488,6 +527,7 @@ export function ImportClients() {
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline">Name (optional)</Badge>
                 <Badge variant="outline">Phone *</Badge>
+                <Badge variant="outline">Business Name (optional)</Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
                 Duplicate contacts (same phone number) will be automatically skipped
@@ -509,7 +549,7 @@ export function ImportClients() {
           </CardHeader>
           <CardContent className="space-y-4">
             <Textarea
-              placeholder={`Paste your data here...\n\nFormat: Name (optional), Phone\nExamples:\nJohn Doe, +91 98765 43210\n+91 87654 32109`}
+              placeholder={`Paste your data here...\n\nFormat: Name (optional), Phone, Business Name (optional)\nExamples:\nJohn Doe, +91 98765 43210, ABC Company\nJane Smith, +91 87654 32109\n+91 76543 21098`}
               value={pasteData}
               onChange={(e) => setPasteData(e.target.value)}
               className={cn("bg-background", isMobile ? "min-h-[140px]" : "min-h-[180px]")}
@@ -556,7 +596,8 @@ export function ImportClients() {
                   <ul className="text-muted-foreground mt-1 space-y-1">
                     <li>• One client per line</li>
                     <li>• Only phone number is required</li>
-                    <li>• Use comma or tab to separate name and phone</li>
+                    <li>• Use comma or tab to separate name, phone, and business name</li>
+                    <li>• Business name is optional (3rd column)</li>
                     <li>• Maximum {MAX_PASTE_IMPORT_LIMIT} entries per paste</li>
                     <li>• Duplicate phone numbers are automatically skipped</li>
                   </ul>

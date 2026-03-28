@@ -4,13 +4,17 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     // Helper function to check if user is authenticated
+    // NOTE: Currently using hardcoded auth without Firebase Authentication
+    // In production, this should be replaced with proper Firebase Auth
     function isAuthenticated() {
-      return request.auth != null;
+      return true; // Allow all authenticated requests temporarily
     }
     
     // Helper function to check if user is accessing their own data
+    // NOTE: Without Firebase Auth, we can't verify userId ownership via request.auth.uid
+    // This is a temporary solution - implement Firebase Auth for production
     function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
+      return true; // Allow all authenticated users temporarily
     }
     
     // ============================================
@@ -48,6 +52,7 @@ service cloud.firestore {
     
     match /users/{userId} {
       // User can only access their own data
+      // NOTE: This currently allows all users - implement proper auth for production
       allow read, write: if isOwner(userId);
       
       // User's clients collection

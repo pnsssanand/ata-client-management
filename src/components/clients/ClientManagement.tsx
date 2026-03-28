@@ -52,57 +52,108 @@ import { cn } from '@/lib/utils';
 import { format, isToday, isThisWeek, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { useDebounce } from '@/hooks/use-debounce';
 
-// Status configuration for tabs and badges
-const STATUS_TABS = [
-  { id: 'all', label: 'All Clients', icon: Users },
-  { id: 'Converted', label: 'Converted', icon: UserCheck },
-  { id: 'Not answered', label: 'Not Answered', icon: PhoneOff },
-  { id: 'New Lead', label: 'New Leads', icon: TrendingUp },
-];
+// Helper: Map status to icon and styling
+const getStatusConfig = (status: string, index: number) => {
+  // Predefined mappings for common statuses
+  const statusMap: Record<string, { icon: typeof Users; color: string; gradient: string; iconColor: string; iconBg: string }> = {
+    'Converted': {
+      icon: UserCheck,
+      color: 'bg-emerald-500',
+      gradient: 'from-emerald-500/10 to-emerald-600/5',
+      iconColor: 'text-emerald-500',
+      iconBg: 'bg-emerald-500/10'
+    },
+    'Not answered': {
+      icon: PhoneOff,
+      color: 'bg-yellow-500',
+      gradient: 'from-yellow-500/10 to-yellow-600/5',
+      iconColor: 'text-yellow-500',
+      iconBg: 'bg-yellow-500/10'
+    },
+    'New Lead': {
+      icon: TrendingUp,
+      color: 'bg-purple-500',
+      gradient: 'from-purple-500/10 to-purple-600/5',
+      iconColor: 'text-purple-500',
+      iconBg: 'bg-purple-500/10'
+    },
+    'Hot Lead': {
+      icon: Sparkles,
+      color: 'bg-red-500',
+      gradient: 'from-red-500/10 to-red-600/5',
+      iconColor: 'text-red-500',
+      iconBg: 'bg-red-500/10'
+    },
+    'Warm Lead': {
+      icon: Phone,
+      color: 'bg-orange-500',
+      gradient: 'from-orange-500/10 to-orange-600/5',
+      iconColor: 'text-orange-500',
+      iconBg: 'bg-orange-500/10'
+    },
+    'Cold Lead': {
+      icon: Clock,
+      color: 'bg-blue-400',
+      gradient: 'from-blue-400/10 to-blue-500/5',
+      iconColor: 'text-blue-400',
+      iconBg: 'bg-blue-400/10'
+    },
+    'Lost': {
+      icon: X,
+      color: 'bg-gray-500',
+      gradient: 'from-gray-500/10 to-gray-600/5',
+      iconColor: 'text-gray-500',
+      iconBg: 'bg-gray-500/10'
+    },
+    'Hindi': {
+      icon: MessageCircle,
+      color: 'bg-orange-500',
+      gradient: 'from-orange-500/10 to-orange-600/5',
+      iconColor: 'text-orange-500',
+      iconBg: 'bg-orange-500/10'
+    },
+    'Slot Booked': {
+      icon: CalendarCheck,
+      color: 'bg-cyan-500',
+      gradient: 'from-cyan-500/10 to-cyan-600/5',
+      iconColor: 'text-cyan-500',
+      iconBg: 'bg-cyan-500/10'
+    },
+    'App user': {
+      icon: UserCheck,
+      color: 'bg-indigo-500',
+      gradient: 'from-indigo-500/10 to-indigo-600/5',
+      iconColor: 'text-indigo-500',
+      iconBg: 'bg-indigo-500/10'
+    },
+    'App Installed': {
+      icon: Download,
+      color: 'bg-violet-500',
+      gradient: 'from-violet-500/10 to-violet-600/5',
+      iconColor: 'text-violet-500',
+      iconBg: 'bg-violet-500/10'
+    },
+  };
 
-// Stat card configuration
-const STAT_CARDS = [
-  {
-    key: 'total',
-    label: 'Total Clients',
-    icon: Users,
-    gradient: 'from-blue-500/10 to-blue-600/5',
-    iconColor: 'text-blue-500',
-    iconBg: 'bg-blue-500/10'
-  },
-  {
-    key: 'Converted',
-    label: 'Converted',
-    icon: UserCheck,
-    gradient: 'from-emerald-500/10 to-emerald-600/5',
-    iconColor: 'text-emerald-500',
-    iconBg: 'bg-emerald-500/10'
-  },
-  {
-    key: 'Not answered',
-    label: 'Not Answered',
-    icon: PhoneOff,
-    gradient: 'from-yellow-500/10 to-yellow-600/5',
-    iconColor: 'text-yellow-500',
-    iconBg: 'bg-yellow-500/10'
-  },
-  {
-    key: 'Hindi',
-    label: 'Hindi',
-    icon: MessageCircle,
-    gradient: 'from-orange-500/10 to-orange-600/5',
-    iconColor: 'text-orange-500',
-    iconBg: 'bg-orange-500/10'
-  },
-  {
-    key: 'Slot Booked',
-    label: 'Slot Booked',
-    icon: CalendarCheck,
-    gradient: 'from-cyan-500/10 to-cyan-600/5',
-    iconColor: 'text-cyan-500',
-    iconBg: 'bg-cyan-500/10'
-  },
-];
+  // Return predefined config or generate default based on index
+  if (statusMap[status]) {
+    return statusMap[status];
+  }
+
+  // Fallback colors for custom statuses
+  const fallbackColors = [
+    { color: 'bg-pink-500', gradient: 'from-pink-500/10 to-pink-600/5', iconColor: 'text-pink-500', iconBg: 'bg-pink-500/10' },
+    { color: 'bg-teal-500', gradient: 'from-teal-500/10 to-teal-600/5', iconColor: 'text-teal-500', iconBg: 'bg-teal-500/10' },
+    { color: 'bg-amber-500', gradient: 'from-amber-500/10 to-amber-600/5', iconColor: 'text-amber-500', iconBg: 'bg-amber-500/10' },
+    { color: 'bg-lime-500', gradient: 'from-lime-500/10 to-lime-600/5', iconColor: 'text-lime-500', iconBg: 'bg-lime-500/10' },
+  ];
+  
+  const colorConfig = fallbackColors[index % fallbackColors.length];
+  return {
+    icon: TrendingUp,
+    ...colorConfig
+  };
+};
 
 // Date filter options
 const DATE_FILTERS = [
@@ -151,33 +202,21 @@ const StatCard = ({ label, value, icon: Icon, gradient, iconColor, iconBg, onCli
   </Card>
 );
 
-// Custom Status Filter Dropdown Options
-const QUICK_STATUS_OPTIONS = [
-  { value: 'all', label: 'All Statuses', color: 'bg-gray-400' },
-  { value: 'New Lead', label: 'New Lead', color: 'bg-purple-500' },
-  { value: 'Not answered', label: 'Not answered', color: 'bg-yellow-500' },
-  { value: 'App user', label: 'App user', color: 'bg-indigo-500' },
-  { value: 'Converted', label: 'Converted', color: 'bg-emerald-500' },
-  { value: 'Lost', label: 'Lost', color: 'bg-gray-500' },
-  { value: 'App Installed', label: 'App Installed', color: 'bg-violet-500' },
-  { value: 'Slot Booked', label: 'Slot Booked', color: 'bg-cyan-500' },
-  { value: 'Hindi', label: 'Hindi', color: 'bg-orange-500' },
-];
-
 // Custom Status Dropdown Component - Pure React, no Radix
 interface CustomStatusDropdownProps {
   value: string;
   onChange: (value: string) => void;
+  options: { value: string; label: string; color: string }[]; // Add options prop
   placeholder?: string;
   disabled?: boolean;
 }
 
-function CustomStatusDropdown({ value, onChange, placeholder, disabled }: CustomStatusDropdownProps) {
+function CustomStatusDropdown({ value, onChange, options, placeholder, disabled }: CustomStatusDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
   // Find current selected option
-  const selectedOption = QUICK_STATUS_OPTIONS.find(opt => opt.value === value) || QUICK_STATUS_OPTIONS[0];
+  const selectedOption = options.find(opt => opt.value === value) || options[0];
 
   // Close dropdown when clicking outside — listener only active while open
   useEffect(() => {
@@ -293,7 +332,7 @@ function CustomStatusDropdown({ value, onChange, placeholder, disabled }: Custom
             }}
           >
             <div className="py-2 px-2 max-h-[320px] overflow-y-auto">
-              {QUICK_STATUS_OPTIONS.filter(opt => placeholder ? opt.value !== 'all' : true).map((option) => (
+              {options.filter(opt => placeholder ? opt.value !== 'all' : true).map((option) => (
                 <button
                   key={option.value}
                   type="button"
@@ -354,8 +393,82 @@ export function ClientManagement() {
   const debouncedSearchQuery = useDebounce(searchQuery, 400);
 
   const clients = useClientStore((state) => state.clients);
+  const dropdowns = useClientStore((state) => state.dropdowns); // NEW: Get dropdowns from store
   const deleteMultipleClients = useClientStore((state) => state.deleteMultipleClients);
   const updateDropdownValue = useClientStore((state) => state.updateDropdownValue);
+
+  // Generate dynamic STATUS_TABS from Lead Status dropdown
+  const STATUS_TABS = useMemo(() => {
+    const leadStatusDropdown = dropdowns.find(d => d.name === 'Lead Status');
+    const statusOptions = leadStatusDropdown?.options || ['New Lead', 'Converted'];
+    
+    // Take first 3 statuses for tabs (or all if less than 3)
+    const tabStatuses = statusOptions.slice(0, 3);
+    
+    return [
+      { id: 'all', label: 'All Clients', icon: Users },
+      ...tabStatuses.map((status, index) => {
+        const config = getStatusConfig(status, index);
+        return {
+          id: status,
+          label: status,
+          icon: config.icon
+        };
+      })
+    ];
+  }, [dropdowns]);
+
+  // Generate dynamic STAT_CARDS from Lead Status dropdown
+  const STAT_CARDS = useMemo(() => {
+    const leadStatusDropdown = dropdowns.find(d => d.name === 'Lead Status');
+    const statusOptions = leadStatusDropdown?.options || ['New Lead', 'Converted'];
+    
+    // Take first 4 statuses for stat cards (or all if less than 4)
+    const statStatuses = statusOptions.slice(0, 4);
+    
+    const cards = [
+      {
+        key: 'total',
+        label: 'Total Clients',
+        icon: Users,
+        gradient: 'from-blue-500/10 to-blue-600/5',
+        iconColor: 'text-blue-500',
+        iconBg: 'bg-blue-500/10'
+      }
+    ];
+    
+    statStatuses.forEach((status, index) => {
+      const config = getStatusConfig(status, index);
+      cards.push({
+        key: status,
+        label: status,
+        icon: config.icon,
+        gradient: config.gradient,
+        iconColor: config.iconColor,
+        iconBg: config.iconBg
+      });
+    });
+    
+    return cards;
+  }, [dropdowns]);
+
+  // Generate dynamic QUICK_STATUS_OPTIONS from Lead Status dropdown
+  const QUICK_STATUS_OPTIONS = useMemo(() => {
+    const leadStatusDropdown = dropdowns.find(d => d.name === 'Lead Status');
+    const statusOptions = leadStatusDropdown?.options || ['New Lead', 'Converted'];
+    
+    return [
+      { value: 'all', label: 'All Statuses', color: 'bg-gray-400' },
+      ...statusOptions.map((status, index) => {
+        const config = getStatusConfig(status, index);
+        return {
+          value: status,
+          label: status,
+          color: config.color
+        };
+      })
+    ];
+  }, [dropdowns]);
 
   // Compute stats - independent of filter state
   const stats = useMemo(() => {
@@ -854,7 +967,8 @@ export function ClientManagement() {
               {/* Status Filter */}
               <CustomStatusDropdown 
                 value={quickStatusFilter} 
-                onChange={setQuickStatusFilter} 
+                onChange={setQuickStatusFilter}
+                options={QUICK_STATUS_OPTIONS}
               />
 
               {/* Date Filter */}
@@ -1022,6 +1136,7 @@ export function ClientManagement() {
                 <CustomStatusDropdown
                   value="all"
                   onChange={handleBulkStatusChange}
+                  options={QUICK_STATUS_OPTIONS}
                   placeholder={isBulkUpdatingStatus ? 'Updating...' : 'Change Status'}
                   disabled={isBulkUpdatingStatus}
                 />

@@ -30,6 +30,13 @@ const VALID_USERS = [
     name: 'ATA Manager',
     role: 'admin' as const,
     userId: 'atamanager'
+  },
+  {
+    email: 'atabniclients@gmail.com',
+    password: 'atabniclients@gmail.com',
+    name: 'ATABNIC Clients',
+    role: 'admin' as const,
+    userId: 'atabniclients'
   }
 ];
 
