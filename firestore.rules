@@ -1,0 +1,79 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is accessing their own data
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+    
+    // ============================================
+    // LEGACY COLLECTIONS (for backward compatibility)
+    // ============================================
+    
+    // Legacy clients collection (for anandtravelagency user)
+    match /clients/{clientId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Legacy dropdowns collection (for anandtravelagency user)
+    match /dropdowns/{dropdownId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Legacy intern sessions collection (for anandtravelagency user)
+    match /internSessions/{sessionId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Legacy intern names collection (for anandtravelagency user)
+    match /internNames/{internNameId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // Legacy WhatsApp templates collection (for anandtravelagency user)
+    match /whatsappTemplates/{templateId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    // ============================================
+    // USER-SPECIFIC COLLECTIONS (for new users)
+    // ============================================
+    
+    match /users/{userId} {
+      // User can only access their own data
+      allow read, write: if isOwner(userId);
+      
+      // User's clients collection
+      match /clients/{clientId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // User's dropdowns collection
+      match /dropdowns/{dropdownId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // User's intern sessions collection
+      match /internSessions/{sessionId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // User's intern names collection
+      match /internNames/{internNameId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // User's WhatsApp templates collection
+      match /whatsappTemplates/{templateId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+  }
+}
