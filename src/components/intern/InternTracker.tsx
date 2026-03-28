@@ -64,6 +64,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { DaywiseOverview } from './DaywiseOverview';
 
 // Colorful 3D Greeting Popup Component
 function GreetingPopup({
@@ -817,6 +818,9 @@ export function InternTracker({ onSessionStarted }: InternTrackerProps) {
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
 
+  // Daywise overview dialog state
+  const [showDaywiseDialog, setShowDaywiseDialog] = useState(false);
+
   // Greeting popup states
   const [showGreetingPopup, setShowGreetingPopup] = useState(false);
   const [greetingType, setGreetingType] = useState<'login' | 'logout'>('login');
@@ -1205,33 +1209,45 @@ export function InternTracker({ onSessionStarted }: InternTrackerProps) {
                 View past session records and performance
               </CardDescription>
             </div>
-            {selectedSessionIds.size > 0 && (
-              <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" size="sm">
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Selected ({selectedSessionIds.size})
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete {selectedSessionIds.size} Session{selectedSessionIds.size > 1 ? 's' : ''}?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will permanently delete the selected session records. This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleBulkDelete}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            )}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Daywise Overview Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDaywiseDialog(true)}
+                className="border-primary/30 hover:bg-primary/5"
+              >
+                <CalendarDays className="h-4 w-4 mr-2 text-primary" />
+                Daywise
+              </Button>
+              {selectedSessionIds.size > 0 && (
+                <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Selected ({selectedSessionIds.size})
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete {selectedSessionIds.size} Session{selectedSessionIds.size > 1 ? 's' : ''}?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will permanently delete the selected session records. This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleBulkDelete}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -1412,6 +1428,13 @@ export function InternTracker({ onSessionStarted }: InternTrackerProps) {
           }}
         />
       )}
+
+      {/* Daywise Overview Dialog */}
+      <DaywiseOverview
+        sessions={internSessions}
+        open={showDaywiseDialog}
+        onOpenChange={setShowDaywiseDialog}
+      />
 
       {/* Greeting Popup */}
       <GreetingPopup
