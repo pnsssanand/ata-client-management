@@ -9,19 +9,21 @@ import {
   DocumentData
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Client, DropdownField, Note, InternSession, LeadStatusSnapshot, InternName } from '@/types/client';
+import { Client, DropdownField, Note, InternSession, LeadStatusSnapshot, InternName, WhatsAppTemplate } from '@/types/client';
 
 // Helper to get user-specific collection path
 const getUserClientsCollection = (userId: string) => `users/${userId}/clients`;
 const getUserDropdownsCollection = (userId: string) => `users/${userId}/dropdowns`;
 const getUserInternSessionsCollection = (userId: string) => `users/${userId}/internSessions`;
 const getUserInternNamesCollection = (userId: string) => `users/${userId}/internNames`;
+const getUserWhatsAppTemplatesCollection = (userId: string) => `users/${userId}/whatsappTemplates`;
 
 // Legacy collection references (for backward compatibility with existing data)
 const LEGACY_CLIENTS_COLLECTION = 'clients';
 const LEGACY_DROPDOWNS_COLLECTION = 'dropdowns';
 const LEGACY_INTERN_SESSIONS_COLLECTION = 'internSessions';
 const LEGACY_INTERN_NAMES_COLLECTION = 'internNames';
+const LEGACY_WHATSAPP_TEMPLATES_COLLECTION = 'whatsappTemplates';
 
 // Legacy user ID - this user uses the old collection structure
 const LEGACY_USER_ID = 'anandtravelagency';
@@ -61,6 +63,15 @@ const getInternNamesCollectionPath = (userId?: string): string => {
   }
   // New users get user-specific collections
   return getUserInternNamesCollection(userId);
+};
+
+const getWhatsAppTemplatesCollectionPath = (userId?: string): string => {
+  // If no userId or legacy user, use legacy collection
+  if (!userId || userId === LEGACY_USER_ID) {
+    return LEGACY_WHATSAPP_TEMPLATES_COLLECTION;
+  }
+  // New users get user-specific collections
+  return getUserWhatsAppTemplatesCollection(userId);
 };
 
 // Convert Date to Firestore Timestamp
@@ -387,6 +398,73 @@ export const subscribeToInternNames = (
     },
     (error) => {
       console.error('Error subscribing to intern names:', error);
+      onError?.(error);
+    }
+  );
+};
+
+// WhatsApp Template operations
+
+// Convert WhatsAppTemplate to Firestore format
+const whatsappTemplateToFirestore = (template: WhatsAppTemplate): DocumentData => {
+  return {
+    id: template.id,
+    emoji: template.emoji,
+    label: template.label,
+    message: template.message,
+    createdAt: dateToTimestamp(template.createdAt),
+    createdBy: template.createdBy,
+    updatedAt: dateToTimestamp(template.updatedAt || new Date())
+  };
+};
+
+// Convert Firestore document to WhatsAppTemplate
+const firestoreToWhatsAppTemplate = (data: DocumentData): WhatsAppTemplate => {
+  return {
+    id: data.id,
+    emoji: data.emoji,
+    label: data.label,
+    message: data.message,
+    createdAt: timestampToDate(data.createdAt),
+    createdBy: data.createdBy,
+    updatedAt: data.updatedAt ? timestampToDate(data.updatedAt) : undefined
+  };
+};
+
+export const saveWhatsAppTemplate = async (template: WhatsAppTemplate, userId?: string): Promise<void> => {
+  const collectionPath = getWhatsAppTemplatesCollectionPath(userId);
+  const templateRef = doc(db, collectionPath, template.id);
+  await setDoc(templateRef, whatsappTemplateToFirestore(template));
+};
+
+export const deleteWhatsAppTemplate = async (templateId: string, userId?: string): Promise<void> => {
+  const collectionPath = getWhatsAppTemplatesCollectionPath(userId);
+  const templateRef = doc(db, collectionPath, templateId);
+  await deleteDoc(templateRef);
+};
+
+// Subscribe to WhatsApp templates collection
+export const subscribeToWhatsAppTemplates = (
+  onTemplatesChange: (templates: WhatsAppTemplate[]) => void,
+  onError?: (error: Error) => void,
+  userId?: string
+) => {
+  const collectionPath = getWhatsAppTemplatesCollectionPath(userId);
+  const templatesRef = collection(db, collectionPath);
+
+  return onSnapshot(
+    templatesRef,
+    (snapshot) => {
+      const templates: WhatsAppTemplate[] = [];
+      snapshot.forEach((doc) => {
+        templates.push(firestoreToWhatsAppTemplate(doc.data()));
+      });
+      // Sort by createdAt
+      templates.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      onTemplatesChange(templates);
+    },
+    (error) => {
+      console.error('Error subscribing to WhatsApp templates:', error);
       onError?.(error);
     }
   );

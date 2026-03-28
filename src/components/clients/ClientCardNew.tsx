@@ -11,13 +11,16 @@ import {
   Check,
   MoreVertical,
   DollarSign,
-  StickyNote
+  StickyNote,
+  Edit2,
+  X
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -185,8 +188,12 @@ export const ClientCardNew = memo(function ClientCardNew({ client, isSelected }:
   const isUpdatingRef = useRef(false);      // ref mirror — stable across renders
   const safetyTimerRef = useRef<number | null>(null); // force-reset if API hangs
   const [, startTransition] = useTransition(); // For non-blocking status updates
+  
+  // Edit contact name state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState(client.name);
 
-  const { dropdowns, updateDropdownValue, addNote } = useClientStore();
+  const { dropdowns, updateDropdownValue, addNote, whatsappTemplates, updateClient } = useClientStore();
 
   // Get lead status dropdown options
   const leadStatusDropdown = dropdowns.find(d => d.name === 'Lead Status');
@@ -360,6 +367,28 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
     }
   };
 
+  const handleSaveName = async () => {
+    if (!editedName.trim() || editedName.trim() === client.name) {
+      setIsEditingName(false);
+      setEditedName(client.name);
+      return;
+    }
+
+    try {
+      await updateClient(client.id, { name: editedName.trim() });
+      setIsEditingName(false);
+      toast.success('Contact name updated', { duration: 1500 });
+    } catch (error) {
+      setEditedName(client.name);
+      toast.error('Failed to update name', { duration: 1500 });
+    }
+  };
+
+  const handleCancelNameEdit = () => {
+    setIsEditingName(false);
+    setEditedName(client.name);
+  };
+
   return (
     <Card className={cn(
       "group transition-all duration-300 ease-out border-border/40 overflow-hidden rounded-2xl shadow-md",
@@ -381,9 +410,50 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
               </Avatar>
               
               <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-foreground truncate text-base sm:text-lg leading-tight group-hover:text-primary transition-colors duration-200">
-                  {client.name}
-                </h3>
+                {isEditingName ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={editedName}
+                      onChange={(e) => setEditedName(e.target.value)}
+                      className="h-8 text-base sm:text-lg font-bold"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveName();
+                        if (e.key === 'Escape') handleCancelNameEdit();
+                      }}
+                    />
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 shrink-0"
+                      onClick={handleSaveName}
+                    >
+                      <Check className="h-4 w-4 text-emerald-600" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 shrink-0"
+                      onClick={handleCancelNameEdit}
+                    >
+                      <X className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 group/name">
+                    <h3 className="font-bold text-foreground truncate text-base sm:text-lg leading-tight group-hover:text-primary transition-colors duration-200">
+                      {client.name}
+                    </h3>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6 opacity-0 group-hover/name:opacity-100 transition-opacity shrink-0"
+                      onClick={() => setIsEditingName(true)}
+                    >
+                      <Edit2 className="h-3 w-3 text-muted-foreground" />
+                    </Button>
+                  </div>
+                )}
                 
                 <button 
                   onClick={() => handleWhatsApp()}
@@ -523,24 +593,31 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
                 <p className="text-xs font-bold text-muted-foreground/80 uppercase tracking-wide px-3 py-2 border-b mb-1.5">
                   Choose Message Template
                 </p>
-                {whatsappMessages.map((msg) => (
-                  <DropdownMenuItem
-                    key={msg.id}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleWhatsApp(msg.message);
-                    }}
-                    className="rounded-xl px-3 py-3 cursor-pointer transition-all hover:bg-emerald-50 focus:bg-emerald-50 gap-3 touch-manipulation"
-                  >
-                    <span className="text-xl">{msg.emoji}</span>
-                    <div className="flex flex-col gap-1">
-                      <span className="font-semibold text-sm">{msg.label}</span>
-                      <span className="text-xs text-muted-foreground line-clamp-1">
-                        {msg.message.split('\n')[0]}...
-                      </span>
-                    </div>
-                  </DropdownMenuItem>
-                ))}
+                {whatsappTemplates.length > 0 ? (
+                  whatsappTemplates.map((template) => (
+                    <DropdownMenuItem
+                      key={template.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleWhatsApp(template.message);
+                      }}
+                      className="rounded-xl px-3 py-3 cursor-pointer transition-all hover:bg-emerald-50 focus:bg-emerald-50 gap-3 touch-manipulation"
+                    >
+                      <span className="text-xl">{template.emoji}</span>
+                      <div className="flex flex-col gap-1">
+                        <span className="font-semibold text-sm">{template.label}</span>
+                        <span className="text-xs text-muted-foreground line-clamp-1">
+                          {template.message.split('\n')[0]}...
+                        </span>
+                      </div>
+                    </DropdownMenuItem>
+                  ))
+                ) : (
+                  <div className="px-3 py-4 text-center">
+                    <p className="text-xs text-muted-foreground">No templates configured</p>
+                    <p className="text-xs text-muted-foreground mt-1">Add templates in Settings</p>
+                  </div>
+                )}
                 <DropdownMenuSeparator className="my-2" />
                 <DropdownMenuItem
                   onClick={(e) => {

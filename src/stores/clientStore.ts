@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Client, DropdownField, User, InternSession, LeadStatusSnapshot, InternName } from '@/types/client';
+import { Client, DropdownField, User, InternSession, LeadStatusSnapshot, InternName, WhatsAppTemplate } from '@/types/client';
 import {
   saveClient,
   deleteClientFromFirestore,
@@ -12,7 +12,10 @@ import {
   subscribeToInternSessions,
   saveInternName,
   deleteInternName,
-  subscribeToInternNames
+  subscribeToInternNames,
+  saveWhatsAppTemplate,
+  deleteWhatsAppTemplate,
+  subscribeToWhatsAppTemplates
 } from '@/lib/firestore';
 
 // Debounce utility for optimizing frequent updates
@@ -36,6 +39,7 @@ interface ClientStore {
   internSessions: InternSession[];
   activeInternSessions: InternSession[];
   internNames: InternName[];
+  whatsappTemplates: WhatsAppTemplate[];
   searchQuery: string;
   filterStatus: string;
   filterPriority: string;
@@ -50,6 +54,7 @@ interface ClientStore {
   unsubscribeDropdowns: (() => void) | null;
   unsubscribeInternSessions: (() => void) | null;
   unsubscribeInternNames: (() => void) | null;
+  unsubscribeWhatsAppTemplates: (() => void) | null;
   setSearchQuery: (query: string) => void;
   setFilterStatus: (status: string) => void;
   setFilterPriority: (priority: string) => void;
@@ -80,6 +85,10 @@ interface ClientStore {
   addInternName: (name: string, color: string) => Promise<void>;
   updateInternName: (id: string, updates: Partial<InternName>) => Promise<void>;
   deleteInternNameRecord: (id: string) => Promise<void>;
+  // WhatsApp template methods
+  addWhatsAppTemplate: (emoji: string, label: string, message: string) => Promise<void>;
+  updateWhatsAppTemplate: (id: string, updates: Partial<WhatsAppTemplate>) => Promise<void>;
+  deleteWhatsAppTemplate: (id: string) => Promise<void>;
 }
 
 export const useClientStore = create<ClientStore>()((set, get) => ({
@@ -88,6 +97,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   internSessions: [],
   activeInternSessions: [],
   internNames: [],
+  whatsappTemplates: [],
   searchQuery: '',
   filterStatus: 'all',
   filterPriority: 'all',
@@ -102,6 +112,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   unsubscribeDropdowns: null,
   unsubscribeInternSessions: null,
   unsubscribeInternNames: null,
+  unsubscribeWhatsAppTemplates: null,
   
   setSearchQuery: (query) => set({ searchQuery: query }),
   setFilterStatus: (status) => set({ filterStatus: status }),
@@ -109,7 +120,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   setFilterCallOutcome: (callOutcome) => set({ filterCallOutcome: callOutcome }),
   
   initializeFirebase: (userId?: string) => {
-    const { isInitialized, unsubscribeClients, unsubscribeDropdowns, unsubscribeInternSessions, unsubscribeInternNames } = get();
+    const { isInitialized, unsubscribeClients, unsubscribeDropdowns, unsubscribeInternSessions, unsubscribeInternNames, unsubscribeWhatsAppTemplates } = get();
 
     if (isInitialized) return;
 
@@ -121,6 +132,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     if (unsubscribeDropdowns) unsubscribeDropdowns();
     if (unsubscribeInternSessions) unsubscribeInternSessions();
     if (unsubscribeInternNames) unsubscribeInternNames();
+    if (unsubscribeWhatsAppTemplates) unsubscribeWhatsAppTemplates();
 
     // Subscribe to clients (pass userId to use user-specific collection)
     const clientsUnsub = subscribeToClients(
@@ -202,27 +214,41 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       userId
     );
 
+    // Subscribe to WhatsApp templates
+    const whatsAppTemplatesUnsub = subscribeToWhatsAppTemplates(
+      (whatsappTemplates) => {
+        set({ whatsappTemplates });
+      },
+      (error) => {
+        console.error('WhatsApp templates subscription error:', error);
+      },
+      userId
+    );
+
     set({
       isInitialized: true,
       unsubscribeClients: clientsUnsub,
       unsubscribeDropdowns: dropdownsUnsub,
       unsubscribeInternSessions: internSessionsUnsub,
-      unsubscribeInternNames: internNamesUnsub
+      unsubscribeInternNames: internNamesUnsub,
+      unsubscribeWhatsAppTemplates: whatsAppTemplatesUnsub
     });
   },
 
   cleanup: () => {
-    const { unsubscribeClients, unsubscribeDropdowns, unsubscribeInternSessions, unsubscribeInternNames } = get();
+    const { unsubscribeClients, unsubscribeDropdowns, unsubscribeInternSessions, unsubscribeInternNames, unsubscribeWhatsAppTemplates } = get();
     if (unsubscribeClients) unsubscribeClients();
     if (unsubscribeDropdowns) unsubscribeDropdowns();
     if (unsubscribeInternSessions) unsubscribeInternSessions();
     if (unsubscribeInternNames) unsubscribeInternNames();
+    if (unsubscribeWhatsAppTemplates) unsubscribeWhatsAppTemplates();
     set({
       clients: [],
       dropdowns: [],
       internSessions: [],
       activeInternSessions: [],
       internNames: [],
+      whatsappTemplates: [],
       currentUserId: null,
       isInitialized: false,
       isLoading: true,
@@ -230,7 +256,8 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       unsubscribeClients: null,
       unsubscribeDropdowns: null,
       unsubscribeInternSessions: null,
-      unsubscribeInternNames: null
+      unsubscribeInternNames: null,
+      unsubscribeWhatsAppTemplates: null
     });
   },
   
@@ -867,6 +894,91 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       // Rollback
       set((state) => ({
         internNames: [...state.internNames, internName]
+      }));
+      throw error;
+    }
+  },
+
+  // WhatsApp template methods
+  addWhatsAppTemplate: async (emoji, label, message) => {
+    const { whatsappTemplates, currentUserId, currentUser } = get();
+    
+    // Validate max 8 templates
+    if (whatsappTemplates.length >= 8) {
+      throw new Error('Maximum 8 WhatsApp templates allowed');
+    }
+
+    const newTemplate: WhatsAppTemplate = {
+      id: `template-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      emoji,
+      label,
+      message,
+      createdAt: new Date(),
+      createdBy: currentUser?.email || 'system'
+    };
+
+    // Optimistically update
+    set((state) => ({
+      whatsappTemplates: [...state.whatsappTemplates, newTemplate]
+    }));
+
+    try {
+      await saveWhatsAppTemplate(newTemplate, currentUserId || undefined);
+    } catch (error) {
+      console.error('Error adding WhatsApp template:', error);
+      // Rollback
+      set((state) => ({
+        whatsappTemplates: state.whatsappTemplates.filter(t => t.id !== newTemplate.id)
+      }));
+      throw error;
+    }
+  },
+
+  updateWhatsAppTemplate: async (id, updates) => {
+    const { whatsappTemplates, currentUserId } = get();
+    const template = whatsappTemplates.find(t => t.id === id);
+    if (!template) return;
+
+    const updatedTemplate = {
+      ...template,
+      ...updates,
+      updatedAt: new Date()
+    };
+
+    // Optimistically update
+    set((state) => ({
+      whatsappTemplates: state.whatsappTemplates.map(t => t.id === id ? updatedTemplate : t)
+    }));
+
+    try {
+      await saveWhatsAppTemplate(updatedTemplate, currentUserId || undefined);
+    } catch (error) {
+      console.error('Error updating WhatsApp template:', error);
+      // Rollback
+      set((state) => ({
+        whatsappTemplates: state.whatsappTemplates.map(t => t.id === id ? template : t)
+      }));
+      throw error;
+    }
+  },
+
+  deleteWhatsAppTemplate: async (id) => {
+    const { whatsappTemplates, currentUserId } = get();
+    const template = whatsappTemplates.find(t => t.id === id);
+    if (!template) return;
+
+    // Optimistically update
+    set((state) => ({
+      whatsappTemplates: state.whatsappTemplates.filter(t => t.id !== id)
+    }));
+
+    try {
+      await deleteWhatsAppTemplate(id, currentUserId || undefined);
+    } catch (error) {
+      console.error('Error deleting WhatsApp template:', error);
+      // Rollback
+      set((state) => ({
+        whatsappTemplates: [...state.whatsappTemplates, template]
       }));
       throw error;
     }

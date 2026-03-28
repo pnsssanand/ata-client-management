@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, Save, X, PlusCircle, Users, Palette } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X, PlusCircle, Users, Palette, MessageCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -47,6 +47,12 @@ export function DropdownSettings() {
   const updateInternName = useClientStore((state) => state.updateInternName);
   const deleteInternNameRecord = useClientStore((state) => state.deleteInternNameRecord);
 
+  // WhatsApp templates state
+  const whatsappTemplates = useClientStore((state) => state.whatsappTemplates);
+  const addWhatsAppTemplate = useClientStore((state) => state.addWhatsAppTemplate);
+  const updateWhatsAppTemplate = useClientStore((state) => state.updateWhatsAppTemplate);
+  const deleteWhatsAppTemplate = useClientStore((state) => state.deleteWhatsAppTemplate);
+
   const [newFieldName, setNewFieldName] = useState('');
   const [newFieldOptions, setNewFieldOptions] = useState('');
   const [editingField, setEditingField] = useState<{ id: string; name: string } | null>(null);
@@ -57,6 +63,12 @@ export function DropdownSettings() {
   const [newInternName, setNewInternName] = useState('');
   const [selectedColor, setSelectedColor] = useState(INTERN_COLORS[0].value);
   const [editingIntern, setEditingIntern] = useState<{ id: string; name: string; color: string } | null>(null);
+
+  // WhatsApp templates form state
+  const [newTemplateEmoji, setNewTemplateEmoji] = useState('👋');
+  const [newTemplateLabel, setNewTemplateLabel] = useState('');
+  const [newTemplateMessage, setNewTemplateMessage] = useState('');
+  const [editingTemplate, setEditingTemplate] = useState<{ id: string; emoji: string; label: string; message: string } | null>(null);
 
   // Reset editing states when dropdowns update from other devices
   useEffect(() => {
@@ -207,6 +219,49 @@ export function DropdownSettings() {
     }
   };
 
+  // WhatsApp template handlers
+  const handleAddTemplate = async () => {
+    if (!newTemplateLabel.trim() || !newTemplateMessage.trim()) {
+      toast.error('Please fill in template label and message');
+      return;
+    }
+
+    try {
+      await addWhatsAppTemplate(newTemplateEmoji, newTemplateLabel.trim(), newTemplateMessage.trim());
+      toast.success('WhatsApp template added!');
+      setNewTemplateEmoji('👋');
+      setNewTemplateLabel('');
+      setNewTemplateMessage('');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to add template. Maximum 8 templates allowed.');
+    }
+  };
+
+  const handleUpdateTemplate = async () => {
+    if (!editingTemplate) return;
+
+    try {
+      await updateWhatsAppTemplate(editingTemplate.id, {
+        emoji: editingTemplate.emoji,
+        label: editingTemplate.label,
+        message: editingTemplate.message
+      });
+      toast.success('Template updated!');
+      setEditingTemplate(null);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to update template');
+    }
+  };
+
+  const handleDeleteTemplate = async (id: string, label: string) => {
+    try {
+      await deleteWhatsAppTemplate(id);
+      toast.success(`Template "${label}" deleted!`);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete template');
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Manage Intern Names */}
@@ -348,6 +403,165 @@ export function DropdownSettings() {
                   </div>
                 )
               ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* WhatsApp Message Templates */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageCircle className="h-5 w-5 text-emerald-600" />
+            WhatsApp Message Templates
+          </CardTitle>
+          <CardDescription>
+            Create up to 8 message templates for quick WhatsApp messages (max 8)
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Add New Template Form */}
+          <div className="space-y-3 p-4 border rounded-lg bg-muted/20">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-1.5 block">Emoji</label>
+                <Input
+                  placeholder="👋"
+                  value={newTemplateEmoji}
+                  onChange={(e) => setNewTemplateEmoji(e.target.value)}
+                  maxLength={2}
+                  className="text-2xl text-center h-12"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-muted-foreground mb-1.5 block">Label</label>
+                <Input
+                  placeholder="e.g., Greeting Message"
+                  value={newTemplateLabel}
+                  onChange={(e) => setNewTemplateLabel(e.target.value)}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-1.5 block">Message</label>
+              <textarea
+                placeholder="Enter your WhatsApp message template..."
+                value={newTemplateMessage}
+                onChange={(e) => setNewTemplateMessage(e.target.value)}
+                className="w-full min-h-[120px] p-3 border rounded-md bg-background resize-y"
+              />
+            </div>
+            <Button 
+              onClick={handleAddTemplate} 
+              disabled={!newTemplateLabel.trim() || !newTemplateMessage.trim() || whatsappTemplates.length >= 8}
+              className="w-full"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Template {whatsappTemplates.length >= 8 && '(Max 8 reached)'}
+            </Button>
+          </div>
+
+          {/* Existing Templates */}
+          {whatsappTemplates.length === 0 ? (
+            <div className="text-center py-6 px-4">
+              <div className="mx-auto w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mb-3">
+                <MessageCircle className="h-6 w-6 text-emerald-600" />
+              </div>
+              <p className="text-sm text-muted-foreground">No WhatsApp templates added yet</p>
+              <p className="text-xs text-muted-foreground mt-1">Add templates above for quick access when messaging clients</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {whatsappTemplates.map((template) => (
+                editingTemplate?.id === template.id ? (
+                  <div key={template.id} className="p-4 border rounded-lg bg-muted/20 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <Input
+                        value={editingTemplate.emoji}
+                        onChange={(e) => setEditingTemplate({ ...editingTemplate, emoji: e.target.value })}
+                        maxLength={2}
+                        className="text-2xl text-center h-12"
+                      />
+                      <Input
+                        value={editingTemplate.label}
+                        onChange={(e) => setEditingTemplate({ ...editingTemplate, label: e.target.value })}
+                        placeholder="Template label"
+                      />
+                    </div>
+                    <textarea
+                      value={editingTemplate.message}
+                      onChange={(e) => setEditingTemplate({ ...editingTemplate, message: e.target.value })}
+                      className="w-full min-h-[120px] p-3 border rounded-md bg-background resize-y"
+                    />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={handleUpdateTemplate} className="flex-1">
+                        <Save className="h-3 w-3 mr-2" />
+                        Save
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setEditingTemplate(null)}>
+                        <X className="h-3 w-3 mr-2" />
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div key={template.id} className="p-4 border rounded-lg bg-card hover:bg-muted/20 transition-colors group">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <span className="text-3xl shrink-0">{template.emoji}</span>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-foreground mb-1">{template.label}</h4>
+                          <p className="text-sm text-muted-foreground line-clamp-2 whitespace-pre-wrap">{template.message}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                          onClick={() => setEditingTemplate({
+                            id: template.id,
+                            emoji: template.emoji,
+                            label: template.label,
+                            message: template.message
+                          })}
+                        >
+                          <Edit2 className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete "{template.label}"?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will permanently delete this WhatsApp message template. This action cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction 
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                onClick={() => handleDeleteTemplate(template.id, template.label)}
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </div>
+                  </div>
+                )
+              ))}
+              {whatsappTemplates.length < 8 && (
+                <p className="text-xs text-center text-muted-foreground">
+                  {whatsappTemplates.length}/8 templates created
+                </p>
+              )}
             </div>
           )}
         </CardContent>

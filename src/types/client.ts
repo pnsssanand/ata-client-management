@@ -68,3 +68,14 @@ export interface InternName {
   isActive: boolean;
   manualSlotBooked?: number; // Manual slot booked count (editable by admin)
 }
+
+// WhatsApp message template (max 8 templates)
+export interface WhatsAppTemplate {
+  id: string;
+  emoji: string;
+  label: string;
+  message: string;
+  createdAt: Date;
+  createdBy: string;
+  updatedAt?: Date;
+}

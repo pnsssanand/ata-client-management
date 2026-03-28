@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
-import { Upload, FileSpreadsheet, Clipboard, Check, AlertCircle, X, Smartphone } from 'lucide-react';
+import { Upload, FileSpreadsheet, Clipboard, Check, AlertCircle, X, Smartphone, UserPlus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useClientStore } from '@/stores/clientStore';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -32,6 +33,11 @@ export function ImportClients() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { addClient, clients } = useClientStore();
   const isMobile = useIsMobile();
+
+  // Single contact import state
+  const [singleContactName, setSingleContactName] = useState('');
+  const [singleContactPhone, setSingleContactPhone] = useState('');
+  const [isImportingSingle, setIsImportingSingle] = useState(false);
 
   // Get all existing phone numbers for duplicate detection
   const existingPhones = new Set(clients.map(c => normalizePhone(c.phone)));
@@ -246,6 +252,52 @@ export function ImportClients() {
     setPasteData('');
   };
 
+  const handleSingleContactImport = async () => {
+    // Validate phone number (must be exactly 10 digits)
+    const phoneDigits = singleContactPhone.replace(/\D/g, '');
+    
+    if (phoneDigits.length !== 10) {
+      toast.error('Please enter exactly 10 digits for the phone number');
+      return;
+    }
+
+    if (!singleContactName.trim()) {
+      toast.error('Please enter a contact name');
+      return;
+    }
+
+    const fullPhone = `+91${phoneDigits}`;
+    const normalizedPhone = normalizePhone(fullPhone);
+
+    // Check for duplicate
+    if (existingPhones.has(normalizedPhone)) {
+      toast.error('This contact already exists');
+      return;
+    }
+
+    setIsImportingSingle(true);
+    setImportStats(null);
+
+    try {
+      await addClient({
+        name: singleContactName.trim(),
+        phone: fullPhone,
+        status: 'New Lead',
+        priority: 'Medium',
+        followUpRequired: true,
+      });
+
+      toast.success(`Contact "${singleContactName}" added successfully!`);
+      setSingleContactName('');
+      setSingleContactPhone('');
+    } catch (error) {
+      console.error('Error adding contact:', error);
+      toast.error('Failed to add contact');
+    } finally {
+      setIsImportingSingle(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Import Stats Summary - Shows after import */}
@@ -301,6 +353,73 @@ export function ImportClients() {
           </CardContent>
         </Card>
       )}
+
+      {/* Quick Add Single Contact */}
+      <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <UserPlus className="h-5 w-5 text-primary" />
+            Quick Add Contact
+          </CardTitle>
+          <CardDescription>
+            Add a single contact quickly with name and phone number
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Contact Name</label>
+              <Input
+                placeholder="Enter contact name"
+                value={singleContactName}
+                onChange={(e) => setSingleContactName(e.target.value)}
+                disabled={isImportingSingle}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Contact Number</label>
+              <div className="flex gap-2">
+                <div className="flex items-center px-3 py-2 bg-muted rounded-md border text-sm font-medium text-muted-foreground shrink-0">
+                  +91
+                </div>
+                <Input
+                  placeholder="10 digit number"
+                  value={singleContactPhone}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, ''); // Only allow digits
+                    if (value.length <= 10) {
+                      setSingleContactPhone(value);
+                    }
+                  }}
+                  maxLength={10}
+                  disabled={isImportingSingle}
+                  className="flex-1"
+                />
+              </div>
+              {singleContactPhone && singleContactPhone.length !== 10 && (
+                <p className="text-xs text-destructive">Must be exactly 10 digits</p>
+              )}
+            </div>
+          </div>
+          <Button
+            onClick={handleSingleContactImport}
+            disabled={isImportingSingle || !singleContactName.trim() || singleContactPhone.length !== 10}
+            className="w-full mt-4"
+          >
+            {isImportingSingle ? (
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent mr-2" />
+                Importing...
+              </>
+            ) : (
+              <>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Import Contact
+              </>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* File Upload - Primary for Mobile */}
