@@ -61,7 +61,8 @@ import {
   Sparkles,
   PartyPopper,
   History,
-  ChevronRight
+  ChevronRight,
+  Pencil
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DaywiseOverview } from './DaywiseOverview';
@@ -513,6 +514,10 @@ function InternNameCard({
   isActive: boolean;
   onClick: () => void;
 }) {
+  const updateInternName = useClientStore((state) => state.updateInternName);
+  const [isEditingSlotBooked, setIsEditingSlotBooked] = useState(false);
+  const [slotBookedInput, setSlotBookedInput] = useState('');
+
   // Calculate total stats
   const totalSessions = sessions.length;
   const totalLeadChanges = sessions.reduce((acc, s) => acc + (s.totalCallsMade || 0), 0);
@@ -527,6 +532,32 @@ function InternNameCard({
 
   // Total slot booked = session calculated + manual (if exists)
   const totalSlotBooked = sessionSlotBooked + (intern.manualSlotBooked || 0);
+
+  const handleEditSlotBooked = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card click
+    setSlotBookedInput(String(totalSlotBooked));
+    setIsEditingSlotBooked(true);
+  };
+
+  const handleSaveSlotBooked = async () => {
+    const newTotalValue = parseInt(slotBookedInput, 10);
+    if (isNaN(newTotalValue) || newTotalValue < 0) {
+      toast.error('Please enter a valid number');
+      return;
+    }
+
+    // Calculate manual adjustment: newTotal - sessionCalculated
+    // This allows the total to be increased or decreased
+    const manualAdjustment = newTotalValue - sessionSlotBooked;
+
+    try {
+      await updateInternName(intern.id, { manualSlotBooked: manualAdjustment });
+      toast.success('Slot booked count updated');
+      setIsEditingSlotBooked(false);
+    } catch (error) {
+      toast.error('Failed to update slot booked count');
+    }
+  };
 
   return (
     <div
@@ -573,9 +604,18 @@ function InternNameCard({
           <p className="text-xs text-muted-foreground">Lead Changes</p>
           <p className="font-bold text-lg" style={{ color: intern.color }}>{totalLeadChanges}</p>
         </div>
-        <div className="bg-emerald-500/20 rounded-lg p-2 text-center border border-emerald-500/30">
+        <div 
+          className="bg-emerald-500/20 rounded-lg p-2 text-center border border-emerald-500/30 cursor-pointer hover:bg-emerald-500/30 hover:border-emerald-500/50 transition-all group/edit relative"
+          onClick={handleEditSlotBooked}
+        >
+          <div className="absolute top-1 right-1 opacity-0 group-hover/edit:opacity-100 transition-opacity">
+            <Pencil className="h-3 w-3 text-emerald-600" />
+          </div>
           <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">Slot Booked</p>
           <p className="font-bold text-lg text-emerald-600 dark:text-emerald-500">{totalSlotBooked}</p>
+          <p className="text-[10px] text-emerald-600 opacity-0 group-hover/edit:opacity-100 transition-opacity mt-0.5">
+            Click to edit
+          </p>
         </div>
       </div>
 
@@ -583,6 +623,48 @@ function InternNameCard({
         <span>View History</span>
         <ChevronRight className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" />
       </div>
+
+      {/* Edit Slot Booked Dialog */}
+      <Dialog open={isEditingSlotBooked} onOpenChange={setIsEditingSlotBooked}>
+        <DialogContent className="sm:max-w-md" onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Edit Slot Booked</DialogTitle>
+            <DialogDescription>
+              Update the slot booked count for {intern.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="slotBookedOverview">Slot Booked Count</Label>
+            <Input
+              id="slotBookedOverview"
+              type="number"
+              min="0"
+              value={slotBookedInput}
+              onChange={(e) => setSlotBookedInput(e.target.value)}
+              className="mt-2"
+              placeholder="Enter slot booked count"
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground mt-2">
+              From sessions: {sessionSlotBooked}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={(e) => {
+              e.stopPropagation();
+              setIsEditingSlotBooked(false);
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={(e) => {
+              e.stopPropagation();
+              handleSaveSlotBooked();
+            }}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -624,14 +706,18 @@ function InternHistoryDialog({
   };
 
   const handleSaveSlotBooked = async () => {
-    const newValue = parseInt(slotBookedInput, 10);
-    if (isNaN(newValue) || newValue < 0) {
+    const newTotalValue = parseInt(slotBookedInput, 10);
+    if (isNaN(newTotalValue) || newTotalValue < 0) {
       toast.error('Please enter a valid number');
       return;
     }
 
+    // Calculate manual adjustment: newTotal - sessionCalculated
+    // This allows the total to be increased or decreased
+    const manualAdjustment = newTotalValue - sessionSlotBooked;
+
     try {
-      await updateInternName(intern.id, { manualSlotBooked: newValue });
+      await updateInternName(intern.id, { manualSlotBooked: manualAdjustment });
       toast.success('Slot booked count updated');
       setIsEditingSlotBooked(false);
     } catch (error) {
@@ -745,7 +831,7 @@ function InternHistoryDialog({
           <DialogHeader>
             <DialogTitle>Edit Total Slot Booked</DialogTitle>
             <DialogDescription>
-              Update the total slot booked count for {intern.name}
+              Enter the total slot booked count for {intern.name}. The system will automatically calculate the adjustment.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -757,10 +843,10 @@ function InternHistoryDialog({
               value={slotBookedInput}
               onChange={(e) => setSlotBookedInput(e.target.value)}
               className="mt-2"
-              placeholder="Enter slot booked count"
+              placeholder="Enter total slot booked count"
             />
             <p className="text-xs text-muted-foreground mt-2">
-              Sessions calculated: {sessionSlotBooked}
+              From sessions: {sessionSlotBooked} • Can be increased or decreased
             </p>
           </div>
           <DialogFooter>

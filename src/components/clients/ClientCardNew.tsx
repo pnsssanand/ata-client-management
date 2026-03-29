@@ -192,6 +192,8 @@ export const ClientCardNew = memo(function ClientCardNew({ client, isSelected }:
   // Edit contact name state
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(client.name);
+  const [isEditingPhone, setIsEditingPhone] = useState(false);
+  const [editedPhone, setEditedPhone] = useState(client.phone);
 
   const { dropdowns, updateDropdownValue, addNote, whatsappTemplates, updateClient } = useClientStore();
 
@@ -389,6 +391,35 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
     setEditedName(client.name);
   };
 
+  const handleSavePhone = async () => {
+    const trimmedPhone = editedPhone.trim();
+
+    if (!trimmedPhone || trimmedPhone === client.phone) {
+      setIsEditingPhone(false);
+      setEditedPhone(client.phone);
+      return;
+    }
+
+    if (!/^[\d+\-\s()]{7,20}$/.test(trimmedPhone)) {
+      toast.error('Please enter a valid mobile number', { duration: 1500 });
+      return;
+    }
+
+    try {
+      await updateClient(client.id, { phone: trimmedPhone });
+      setIsEditingPhone(false);
+      toast.success('Mobile number updated', { duration: 1500 });
+    } catch (error) {
+      setEditedPhone(client.phone);
+      toast.error('Failed to update mobile number', { duration: 1500 });
+    }
+  };
+
+  const handleCancelPhoneEdit = () => {
+    setIsEditingPhone(false);
+    setEditedPhone(client.phone);
+  };
+
   return (
     <Card className={cn(
       "group transition-all duration-300 ease-out border-border/40 overflow-hidden rounded-2xl shadow-md",
@@ -455,15 +486,46 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
                   </div>
                 )}
                 
-                <button 
-                  onClick={() => handleWhatsApp()}
-                  className="flex items-center gap-1.5 sm:gap-2 mt-1.5 sm:mt-2 text-xs sm:text-sm text-muted-foreground hover:text-emerald-600 transition-all duration-200 cursor-pointer group/phone touch-manipulation"
-                >
-                  <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                  <span className="group-hover/phone:underline decoration-dotted underline-offset-2 font-medium">
-                    {client.phone}
-                  </span>
-                </button>
+                {isEditingPhone ? (
+                  <div className="flex items-center gap-2 mt-1.5 sm:mt-2">
+                    <Input
+                      value={editedPhone}
+                      onChange={(e) => setEditedPhone(e.target.value)}
+                      className="h-8 text-xs sm:text-sm"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSavePhone();
+                        if (e.key === 'Escape') handleCancelPhoneEdit();
+                      }}
+                    />
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 shrink-0"
+                      onClick={handleSavePhone}
+                    >
+                      <Check className="h-4 w-4 text-emerald-600" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-7 w-7 shrink-0"
+                      onClick={handleCancelPhoneEdit}
+                    >
+                      <X className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                ) : (
+                  <button 
+                    onClick={() => handleWhatsApp()}
+                    className="flex items-center gap-1.5 sm:gap-2 mt-1.5 sm:mt-2 text-xs sm:text-sm text-muted-foreground hover:text-emerald-600 transition-all duration-200 cursor-pointer group/phone touch-manipulation"
+                  >
+                    <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    <span className="group-hover/phone:underline decoration-dotted underline-offset-2 font-medium">
+                      {client.phone}
+                    </span>
+                  </button>
+                )}
 
                 {client.company && (
                   <div className="flex items-center gap-1.5 sm:gap-2 mt-1 sm:mt-1.5 text-[11px] sm:text-xs text-muted-foreground">
@@ -673,6 +735,16 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
                 <DropdownMenuItem className="rounded-xl gap-2.5 cursor-pointer touch-manipulation py-2.5 font-medium hover:bg-primary/10 hover:text-primary">
                   <DollarSign className="h-4 w-4" />
                   Add Sale
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setIsEditingPhone(true);
+                    setEditedPhone(client.phone);
+                  }}
+                  className="rounded-xl gap-2.5 cursor-pointer touch-manipulation py-2.5 font-medium hover:bg-primary/10 hover:text-primary"
+                >
+                  <Phone className="h-4 w-4" />
+                  Edit Mobile Number
                 </DropdownMenuItem>
                 <DropdownMenuItem className="rounded-xl gap-2.5 cursor-pointer touch-manipulation py-2.5 font-medium hover:bg-primary/10 hover:text-primary">
                   <Mail className="h-4 w-4" />
