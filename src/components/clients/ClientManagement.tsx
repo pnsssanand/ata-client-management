@@ -402,8 +402,8 @@ export function ClientManagement() {
     const leadStatusDropdown = dropdowns.find(d => d.name === 'Lead Status');
     const statusOptions = leadStatusDropdown?.options || ['New Lead', 'Converted'];
     
-    // Take first 3 statuses for tabs (or all if less than 3)
-    const tabStatuses = statusOptions.slice(0, 3);
+    // Show all statuses as tabs
+    const tabStatuses = statusOptions;
     
     return [
       { id: 'all', label: 'All Clients', icon: Users },
@@ -423,8 +423,8 @@ export function ClientManagement() {
     const leadStatusDropdown = dropdowns.find(d => d.name === 'Lead Status');
     const statusOptions = leadStatusDropdown?.options || ['New Lead', 'Converted'];
     
-    // Take first 4 statuses for stat cards (or all if less than 4)
-    const statStatuses = statusOptions.slice(0, 4);
+    // Show all statuses as stat cards
+    const statStatuses = statusOptions;
     
     const cards = [
       {

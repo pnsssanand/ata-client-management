@@ -13,7 +13,8 @@ import {
   DollarSign,
   StickyNote,
   Edit2,
-  X
+  X,
+  Download
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ import { useClientStore } from '@/stores/clientStore';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
+import { downloadVCard } from '@/lib/vcard';
 
 // Status color configuration - DTS style
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string; dot: string }> = {
@@ -420,6 +422,15 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
     setEditedPhone(client.phone);
   };
 
+  const handleSaveContact = useCallback(() => {
+    try {
+      downloadVCard(client);
+      toast.success('Contact saved successfully!', { duration: 2000 });
+    } catch (error) {
+      toast.error('Failed to save contact', { duration: 2000 });
+    }
+  }, [client]);
+
   return (
     <Card className={cn(
       "group transition-all duration-300 ease-out border-border/40 overflow-hidden rounded-2xl shadow-md",
@@ -745,6 +756,13 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
                 >
                   <Phone className="h-4 w-4" />
                   Edit Mobile Number
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleSaveContact}
+                  className="rounded-xl gap-2.5 cursor-pointer touch-manipulation py-2.5 font-medium hover:bg-primary/10 hover:text-primary"
+                >
+                  <Download className="h-4 w-4" />
+                  Save Contact
                 </DropdownMenuItem>
                 <DropdownMenuItem className="rounded-xl gap-2.5 cursor-pointer touch-manipulation py-2.5 font-medium hover:bg-primary/10 hover:text-primary">
                   <Mail className="h-4 w-4" />
