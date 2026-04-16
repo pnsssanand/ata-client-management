@@ -8,6 +8,7 @@ import { ClientManagement } from '@/components/clients/ClientManagement';
 import { ImportClients } from '@/components/import/ImportClients';
 import { DropdownSettings } from '@/components/settings/DropdownSettings';
 import { InternTracker } from '@/components/intern/InternTracker';
+import { WAMessenger } from '@/components/wa-messenger/WAMessenger';
 import { useClientStore } from '@/stores/clientStore';
 import { useState, useEffect } from 'react';
 import { Loader2, Code2 } from 'lucide-react';
@@ -20,6 +21,7 @@ const pageTitles: Record<string, string> = {
   intern: 'Intern Login',
   import: 'Import Clients',
   settings: 'Settings',
+  'wa-messenger': 'WA Messenger',
 };
 
 const Index = () => {
@@ -174,6 +176,9 @@ const Index = () => {
 
           {/* Settings Page */}
           {currentPage === 'settings' && <DropdownSettings />}
+
+          {/* WA Messenger Page */}
+          {currentPage === 'wa-messenger' && <WAMessenger />}
         </div>
 
         {/* Footer */}

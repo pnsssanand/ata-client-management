@@ -8,7 +8,8 @@ import {
   LogOut,
   ChevronLeft,
   X,
-  UserCheck
+  UserCheck,
+  MessageSquare
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/authStore';
@@ -31,6 +32,7 @@ const navItems = [
   { id: 'intern', label: 'Intern Login', icon: UserCheck },
   { id: 'import', label: 'Import Clients', icon: Upload },
   { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'wa-messenger', label: 'WA Messenger', icon: MessageSquare },
 ];
 
 export function Sidebar({ currentPage, onNavigate, collapsed, onCollapsedChange, mobileOpen, onMobileOpenChange }: SidebarProps) {
@@ -154,7 +156,9 @@ export function Sidebar({ currentPage, onNavigate, collapsed, onCollapsedChange,
             <Button
               key={item.id}
               variant={currentPage === item.id ? "default" : "ghost"}
-              className="w-full justify-start gap-3 transition-all"
+              className={cn(
+                "w-full justify-start gap-3 transition-all",
+              )}
               onClick={() => handleNavigate(item.id)}
             >
               <item.icon className="h-5 w-5 shrink-0" />
