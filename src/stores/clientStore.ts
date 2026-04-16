@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Client, DropdownField, User, InternSession, LeadStatusSnapshot, InternName, WhatsAppTemplate } from '@/types/client';
+import { Client, DropdownField, User, InternSession, LeadStatusSnapshot, InternName, WhatsAppTemplate, MessageLog } from '@/types/client';
 import {
   saveClient,
   deleteClientFromFirestore,
@@ -15,7 +15,9 @@ import {
   subscribeToInternNames,
   saveWhatsAppTemplate,
   deleteWhatsAppTemplate,
-  subscribeToWhatsAppTemplates
+  subscribeToWhatsAppTemplates,
+  saveMessageLog,
+  subscribeToMessageLogs
 } from '@/lib/firestore';
 
 // Debounce utility for optimizing frequent updates
@@ -40,6 +42,7 @@ interface ClientStore {
   activeInternSessions: InternSession[];
   internNames: InternName[];
   whatsappTemplates: WhatsAppTemplate[];
+  messageLogs: MessageLog[];
   searchQuery: string;
   filterStatus: string;
   filterPriority: string;
@@ -55,6 +58,7 @@ interface ClientStore {
   unsubscribeInternSessions: (() => void) | null;
   unsubscribeInternNames: (() => void) | null;
   unsubscribeWhatsAppTemplates: (() => void) | null;
+  unsubscribeMessageLogs: (() => void) | null;
   setSearchQuery: (query: string) => void;
   setFilterStatus: (status: string) => void;
   setFilterPriority: (priority: string) => void;
@@ -89,6 +93,8 @@ interface ClientStore {
   addWhatsAppTemplate: (emoji: string, label: string, message: string) => Promise<void>;
   updateWhatsAppTemplate: (id: string, updates: Partial<WhatsAppTemplate>) => Promise<void>;
   deleteWhatsAppTemplate: (id: string) => Promise<void>;
+  // Message log methods
+  addMessageLog: (log: Omit<MessageLog, 'id'>) => Promise<void>;
 }
 
 export const useClientStore = create<ClientStore>()((set, get) => ({
@@ -98,6 +104,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   activeInternSessions: [],
   internNames: [],
   whatsappTemplates: [],
+  messageLogs: [],
   searchQuery: '',
   filterStatus: 'all',
   filterPriority: 'all',
@@ -113,6 +120,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   unsubscribeInternSessions: null,
   unsubscribeInternNames: null,
   unsubscribeWhatsAppTemplates: null,
+  unsubscribeMessageLogs: null,
   
   setSearchQuery: (query) => set({ searchQuery: query }),
   setFilterStatus: (status) => set({ filterStatus: status }),
@@ -120,7 +128,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   setFilterCallOutcome: (callOutcome) => set({ filterCallOutcome: callOutcome }),
   
   initializeFirebase: (userId?: string) => {
-    const { isInitialized, unsubscribeClients, unsubscribeDropdowns, unsubscribeInternSessions, unsubscribeInternNames, unsubscribeWhatsAppTemplates } = get();
+    const { isInitialized, unsubscribeClients, unsubscribeDropdowns, unsubscribeInternSessions, unsubscribeInternNames, unsubscribeWhatsAppTemplates, unsubscribeMessageLogs } = get();
 
     if (isInitialized) return;
 
@@ -133,6 +141,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     if (unsubscribeInternSessions) unsubscribeInternSessions();
     if (unsubscribeInternNames) unsubscribeInternNames();
     if (unsubscribeWhatsAppTemplates) unsubscribeWhatsAppTemplates();
+    if (unsubscribeMessageLogs) unsubscribeMessageLogs();
 
     // Subscribe to clients (pass userId to use user-specific collection)
     const clientsUnsub = subscribeToClients(
@@ -225,23 +234,36 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       userId
     );
 
+    // Subscribe to message logs
+    const messageLogsUnsub = subscribeToMessageLogs(
+      (messageLogs) => {
+        set({ messageLogs });
+      },
+      (error) => {
+        console.error('Message logs subscription error:', error);
+      },
+      userId
+    );
+
     set({
       isInitialized: true,
       unsubscribeClients: clientsUnsub,
       unsubscribeDropdowns: dropdownsUnsub,
       unsubscribeInternSessions: internSessionsUnsub,
       unsubscribeInternNames: internNamesUnsub,
-      unsubscribeWhatsAppTemplates: whatsAppTemplatesUnsub
+      unsubscribeWhatsAppTemplates: whatsAppTemplatesUnsub,
+      unsubscribeMessageLogs: messageLogsUnsub
     });
   },
 
   cleanup: () => {
-    const { unsubscribeClients, unsubscribeDropdowns, unsubscribeInternSessions, unsubscribeInternNames, unsubscribeWhatsAppTemplates } = get();
+    const { unsubscribeClients, unsubscribeDropdowns, unsubscribeInternSessions, unsubscribeInternNames, unsubscribeWhatsAppTemplates, unsubscribeMessageLogs } = get();
     if (unsubscribeClients) unsubscribeClients();
     if (unsubscribeDropdowns) unsubscribeDropdowns();
     if (unsubscribeInternSessions) unsubscribeInternSessions();
     if (unsubscribeInternNames) unsubscribeInternNames();
     if (unsubscribeWhatsAppTemplates) unsubscribeWhatsAppTemplates();
+    if (unsubscribeMessageLogs) unsubscribeMessageLogs();
     set({
       clients: [],
       dropdowns: [],
@@ -249,6 +271,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       activeInternSessions: [],
       internNames: [],
       whatsappTemplates: [],
+      messageLogs: [],
       currentUserId: null,
       isInitialized: false,
       isLoading: true,
@@ -257,7 +280,8 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       unsubscribeDropdowns: null,
       unsubscribeInternSessions: null,
       unsubscribeInternNames: null,
-      unsubscribeWhatsAppTemplates: null
+      unsubscribeWhatsAppTemplates: null,
+      unsubscribeMessageLogs: null
     });
   },
   
@@ -981,6 +1005,17 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
         whatsappTemplates: [...state.whatsappTemplates, template]
       }));
       throw error;
+    }
+  },
+
+  addMessageLog: async (log) => {
+    const { currentUserId } = get();
+    const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const fullLog = { ...log, id };
+    try {
+      await saveMessageLog(fullLog, currentUserId || undefined);
+    } catch (error) {
+      console.error('Error saving message log:', error);
     }
   }
 }));

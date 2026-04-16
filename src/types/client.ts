@@ -79,3 +79,16 @@ export interface WhatsAppTemplate {
   createdBy: string;
   updatedAt?: Date;
 }
+
+// WhatsApp message log for tracking sent messages
+export interface MessageLog {
+  id: string;
+  recipientPhone: string;
+  recipientName: string;
+  templateName: string;
+  variables: Record<string, unknown>[];
+  status: 'sent' | 'failed';
+  waMessageId?: string;
+  error?: string;
+  sentAt: Date;
+}

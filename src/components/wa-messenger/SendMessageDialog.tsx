@@ -18,6 +18,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { Send, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import { Client } from '@/types/client';
+import { useClientStore } from '@/stores/clientStore';
 
 interface Template {
   name: string;
@@ -52,6 +53,7 @@ export function SendMessageDialog({
   const [variables, setVariables] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
   const [results, setResults] = useState<SendResult[]>([]);
+  const addMessageLog = useClientStore((state) => state.addMessageLog);
 
   useEffect(() => {
     fetch('/api/whatsapp/templates')
@@ -118,24 +120,50 @@ export function SendMessageDialog({
         });
 
         const data = await res.json();
+        const msgStatus = res.ok ? 'sent' : 'failed';
+
+        // Log to Firestore
+        addMessageLog({
+          recipientPhone: client.phone,
+          recipientName: client.name,
+          templateName: selectedTemplate.name,
+          variables: components,
+          status: msgStatus,
+          waMessageId: data.result?.messages?.[0]?.id,
+          error: res.ok ? undefined : data.error,
+          sentAt: new Date(),
+        });
 
         setResults((prev) => [
           ...prev,
           {
             clientName: client.name,
             phone: client.phone,
-            status: res.ok ? 'sent' : 'failed',
+            status: msgStatus,
             error: res.ok ? undefined : data.error,
           },
         ]);
       } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Network error';
+
+        // Log failure to Firestore
+        addMessageLog({
+          recipientPhone: client.phone,
+          recipientName: client.name,
+          templateName: selectedTemplate.name,
+          variables: components,
+          status: 'failed',
+          error: errorMsg,
+          sentAt: new Date(),
+        });
+
         setResults((prev) => [
           ...prev,
           {
             clientName: client.name,
             phone: client.phone,
             status: 'failed',
-            error: err instanceof Error ? err.message : 'Network error',
+            error: errorMsg,
           },
         ]);
       }

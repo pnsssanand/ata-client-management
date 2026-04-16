@@ -9,6 +9,7 @@ import { ImportClients } from '@/components/import/ImportClients';
 import { DropdownSettings } from '@/components/settings/DropdownSettings';
 import { InternTracker } from '@/components/intern/InternTracker';
 import { WAMessenger } from '@/components/wa-messenger/WAMessenger';
+import { WhatsAppBusiness } from '@/components/wa-messenger/WhatsAppBusiness';
 import { useClientStore } from '@/stores/clientStore';
 import { useState, useEffect } from 'react';
 import { Loader2, Code2 } from 'lucide-react';
@@ -22,6 +23,7 @@ const pageTitles: Record<string, string> = {
   import: 'Import Clients',
   settings: 'Settings',
   'wa-messenger': 'WA Messenger',
+  'whatsapp': 'WhatsApp Business',
 };
 
 const Index = () => {
@@ -179,6 +181,9 @@ const Index = () => {
 
           {/* WA Messenger Page */}
           {currentPage === 'wa-messenger' && <WAMessenger />}
+
+          {/* WhatsApp Business Page */}
+          {currentPage === 'whatsapp' && <WhatsAppBusiness />}
         </div>
 
         {/* Footer */}

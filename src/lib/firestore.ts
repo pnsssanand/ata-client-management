@@ -9,7 +9,7 @@ import {
   DocumentData
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Client, DropdownField, Note, InternSession, LeadStatusSnapshot, InternName, WhatsAppTemplate } from '@/types/client';
+import { Client, DropdownField, Note, InternSession, LeadStatusSnapshot, InternName, WhatsAppTemplate, MessageLog } from '@/types/client';
 
 // Helper to get user-specific collection path
 const getUserClientsCollection = (userId: string) => `users/${userId}/clients`;
@@ -17,12 +17,14 @@ const getUserDropdownsCollection = (userId: string) => `users/${userId}/dropdown
 const getUserInternSessionsCollection = (userId: string) => `users/${userId}/internSessions`;
 const getUserInternNamesCollection = (userId: string) => `users/${userId}/internNames`;
 const getUserWhatsAppTemplatesCollection = (userId: string) => `users/${userId}/whatsappTemplates`;
+const getUserMessageLogsCollection = (userId: string) => `users/${userId}/messageLogs`;
 
 // Legacy collection references (for backward compatibility with existing data)
 const LEGACY_CLIENTS_COLLECTION = 'clients';
 const LEGACY_DROPDOWNS_COLLECTION = 'dropdowns';
 const LEGACY_INTERN_SESSIONS_COLLECTION = 'internSessions';
 const LEGACY_INTERN_NAMES_COLLECTION = 'internNames';
+const LEGACY_MESSAGE_LOGS_COLLECTION = 'messageLogs';
 const LEGACY_WHATSAPP_TEMPLATES_COLLECTION = 'whatsappTemplates';
 
 // Legacy user ID - this user uses the old collection structure
@@ -72,6 +74,13 @@ const getWhatsAppTemplatesCollectionPath = (userId?: string): string => {
   }
   // New users get user-specific collections
   return getUserWhatsAppTemplatesCollection(userId);
+};
+
+const getMessageLogsCollectionPath = (userId?: string): string => {
+  if (!userId || userId === LEGACY_USER_ID) {
+    return LEGACY_MESSAGE_LOGS_COLLECTION;
+  }
+  return getUserMessageLogsCollection(userId);
 };
 
 // Convert Date to Firestore Timestamp
@@ -465,6 +474,67 @@ export const subscribeToWhatsAppTemplates = (
     },
     (error) => {
       console.error('Error subscribing to WhatsApp templates:', error);
+      onError?.(error);
+    }
+  );
+};
+
+// Message Log operations
+
+const messageLogToFirestore = (log: MessageLog): DocumentData => {
+  return {
+    id: log.id,
+    recipientPhone: log.recipientPhone,
+    recipientName: log.recipientName,
+    templateName: log.templateName,
+    variables: log.variables || [],
+    status: log.status,
+    waMessageId: log.waMessageId || null,
+    error: log.error || null,
+    sentAt: dateToTimestamp(log.sentAt),
+  };
+};
+
+const firestoreToMessageLog = (data: DocumentData): MessageLog => {
+  return {
+    id: data.id,
+    recipientPhone: data.recipientPhone,
+    recipientName: data.recipientName,
+    templateName: data.templateName,
+    variables: data.variables || [],
+    status: data.status,
+    waMessageId: data.waMessageId || undefined,
+    error: data.error || undefined,
+    sentAt: timestampToDate(data.sentAt),
+  };
+};
+
+export const saveMessageLog = async (log: MessageLog, userId?: string): Promise<void> => {
+  const collectionPath = getMessageLogsCollectionPath(userId);
+  const logRef = doc(db, collectionPath, log.id);
+  await setDoc(logRef, messageLogToFirestore(log));
+};
+
+export const subscribeToMessageLogs = (
+  onLogsChange: (logs: MessageLog[]) => void,
+  onError?: (error: Error) => void,
+  userId?: string
+) => {
+  const collectionPath = getMessageLogsCollectionPath(userId);
+  const logsRef = collection(db, collectionPath);
+
+  return onSnapshot(
+    logsRef,
+    (snapshot) => {
+      const logs: MessageLog[] = [];
+      snapshot.forEach((doc) => {
+        logs.push(firestoreToMessageLog(doc.data()));
+      });
+      logs.sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
+      onLogsChange(logs);
+    },
+    (error) => {
+      console.error('Error subscribing to message logs:', error);
       onError?.(error);
     }
   );

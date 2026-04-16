@@ -9,7 +9,8 @@ import {
   ChevronLeft,
   X,
   UserCheck,
-  MessageSquare
+  MessageSquare,
+  MessageCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/stores/authStore';
@@ -33,6 +34,7 @@ const navItems = [
   { id: 'import', label: 'Import Clients', icon: Upload },
   { id: 'settings', label: 'Settings', icon: Settings },
   { id: 'wa-messenger', label: 'WA Messenger', icon: MessageSquare },
+  { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
 ];
 
 export function Sidebar({ currentPage, onNavigate, collapsed, onCollapsedChange, mobileOpen, onMobileOpenChange }: SidebarProps) {
