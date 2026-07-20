@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -16,9 +16,11 @@ import {
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
-import { Send, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Send, CheckCircle, XCircle, Loader2, UploadCloud } from 'lucide-react';
 import { Client } from '@/types/client';
 import { useClientStore } from '@/stores/clientStore';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 interface Template {
   name: string;
@@ -55,7 +57,15 @@ export function SendMessageDialog({
   const [promoImageUrl, setPromoImageUrl] = useState<string>('');
   const [sending, setSending] = useState(false);
   const [results, setResults] = useState<SendResult[]>([]);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [isVideoAutoFilled, setIsVideoAutoFilled] = useState<boolean>(false);
+  const [isPromoImageAutoFilled, setIsPromoImageAutoFilled] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const promoFileInputRef = useRef<HTMLInputElement>(null);
   const addMessageLog = useClientStore((state) => state.addMessageLog);
+  const videoTemplates = useClientStore((state) => state.videoTemplates);
+  const imageTemplates = useClientStore((state) => state.imageTemplates);
 
   useEffect(() => {
     fetch('/api/whatsapp/templates')
@@ -78,22 +88,88 @@ export function SendMessageDialog({
     if (tpl) {
       setVariables(new Array(getVariableCount(tpl)).fill(''));
       const header = tpl.components.find((c) => c.type === 'HEADER');
-      if (header?.format === 'VIDEO') {
-        setVideoUrl('https://www.w3schools.com/html/mov_bbb.mp4');
+      
+      let foundMedia = videoTemplates.find(t => t.templateName === name) || imageTemplates.find(t => t.templateName === name);
+
+      if (header?.format === 'VIDEO' || header?.format === 'IMAGE') {
+        if (foundMedia) {
+          setVideoUrl(foundMedia.mediaUrl);
+          setIsVideoAutoFilled(true);
+        } else {
+          setVideoUrl(''); // Wait for user to input or upload
+          setIsVideoAutoFilled(false);
+        }
       } else {
         setVideoUrl('');
+        setIsVideoAutoFilled(false);
       }
+      
       if (tpl.name === 'bus_booking_promo') {
-        setPromoImageUrl('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTVG8515YjZfQc35J_XvH6vK29bT37j5B9yvw&s');
+        if (foundMedia) {
+          setPromoImageUrl(foundMedia.mediaUrl);
+          setIsPromoImageAutoFilled(true);
+        } else {
+          setPromoImageUrl('https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTVG8515YjZfQc35J_XvH6vK29bT37j5B9yvw&s');
+          setIsPromoImageAutoFilled(false);
+        }
       } else {
         setPromoImageUrl('');
+        setIsPromoImageAutoFilled(false);
       }
     } else {
       setVariables([]);
       setVideoUrl('');
       setPromoImageUrl('');
+      setIsVideoAutoFilled(false);
+      setIsPromoImageAutoFilled(false);
     }
   }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, targetField: 'video' | 'promo') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['video/mp4', 'image/jpeg', 'image/png'];
+    if (!validTypes.includes(file.type)) {
+      alert('Only .mp4, .jpg, and .png files are supported');
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    const storageRef = ref(storage, `whatsapp_media/${Date.now()}_${file.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+
+    uploadTask.on(
+      'state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        setUploadProgress(progress);
+      },
+      (error) => {
+        console.error('Upload failed:', error);
+        setIsUploading(false);
+        alert('File upload failed');
+      },
+      () => {
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+          if (targetField === 'video') {
+            setVideoUrl(downloadURL);
+            setIsVideoAutoFilled(false);
+          } else {
+            setPromoImageUrl(downloadURL);
+            setIsPromoImageAutoFilled(false);
+          }
+          setIsUploading(false);
+          setUploadProgress(0);
+        });
+      }
+    );
+    
+    // Clear input
+    e.target.value = '';
+  };
 
   function getPreviewText(): string {
     if (!selectedTemplate) return '';
@@ -137,6 +213,18 @@ export function SendMessageDialog({
             type: 'video',
             video: {
               link: videoUrl || 'https://youtube.com/shorts/snPvlQCb2Bo?si=stprdJSKNVirQw63'
+            }
+          }
+        ]
+      });
+    } else if (headerComp?.format === 'IMAGE') {
+      components.push({
+        type: 'header',
+        parameters: [
+          {
+            type: 'image',
+            image: {
+              link: videoUrl
             }
           }
         ]
@@ -354,26 +442,98 @@ export function SendMessageDialog({
             )}
 
             {/* Video URL input */}
-            {selectedTemplate?.components.some((c) => c.type === 'HEADER' && c.format === 'VIDEO') && selectedTemplate?.name !== 'bus_booking_promo' && (
+            {selectedTemplate?.components.some((c) => c.type === 'HEADER' && (c.format === 'VIDEO' || c.format === 'IMAGE')) && selectedTemplate?.name !== 'bus_booking_promo' && (
               <div className="space-y-2 mt-4">
-                <label className="text-sm font-medium">Video Link</label>
-                <Input
-                  placeholder="https://example.com/video.mp4"
-                  value={videoUrl}
-                  onChange={(e) => setVideoUrl(e.target.value)}
-                />
+                <div className="flex justify-between items-center">
+                  <label className="text-sm font-medium">
+                    {selectedTemplate?.components.find(c => c.type === 'HEADER')?.format === 'IMAGE' ? 'Image Link' : 'Media Link (Video/Image)'}
+                  </label>
+                  {isVideoAutoFilled && (
+                    <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                      Auto-filled from saved template media
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="https://example.com/media.mp4"
+                    value={videoUrl}
+                    onChange={(e) => {
+                      setVideoUrl(e.target.value);
+                      setIsVideoAutoFilled(false);
+                    }}
+                  />
+                  <input
+                    type="file"
+                    className="hidden"
+                    ref={fileInputRef}
+                    accept="video/mp4,image/jpeg,image/png"
+                    onChange={(e) => handleFileUpload(e, 'video')}
+                  />
+                  <Button
+                    variant="outline"
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="shrink-0"
+                  >
+                    {isUploading ? (
+                      `${Math.round(uploadProgress)}%`
+                    ) : (
+                      <>
+                        <UploadCloud className="mr-2 h-4 w-4" />
+                        Upload
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             )}
 
             {/* Bus Booking Promo Image URL input */}
             {selectedTemplate?.name === 'bus_booking_promo' && (
               <div className="space-y-2 mt-4">
-                <label className="text-sm font-medium">Promo Image Link</label>
-                <Input
-                  placeholder="https://example.com/promo.jpg"
-                  value={promoImageUrl}
-                  onChange={(e) => setPromoImageUrl(e.target.value)}
-                />
+                <div className="flex justify-between items-center">
+                  <label className="text-sm font-medium">Promo Image Link</label>
+                  {isPromoImageAutoFilled && (
+                    <span className="text-[10px] text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">
+                      Auto-filled from saved template media
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="https://example.com/promo.jpg"
+                    value={promoImageUrl}
+                    onChange={(e) => {
+                      setPromoImageUrl(e.target.value);
+                      setIsPromoImageAutoFilled(false);
+                    }}
+                  />
+                  <input
+                    type="file"
+                    className="hidden"
+                    ref={promoFileInputRef}
+                    accept="image/jpeg,image/png"
+                    onChange={(e) => handleFileUpload(e, 'promo')}
+                  />
+                  <Button
+                    variant="outline"
+                    type="button"
+                    onClick={() => promoFileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="shrink-0"
+                  >
+                    {isUploading ? (
+                      `${Math.round(uploadProgress)}%`
+                    ) : (
+                      <>
+                        <UploadCloud className="mr-2 h-4 w-4" />
+                        Upload
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             )}
 

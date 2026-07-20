@@ -1,11 +1,20 @@
-import { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, Save, X, PlusCircle, Users, Palette, MessageCircle } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Plus, Trash2, Edit2, Save, X, PlusCircle, Users, Palette, MessageCircle, Link as LinkIcon, ExternalLink, Video, Image as ImageIcon, UploadCloud, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useClientStore } from '@/stores/clientStore';
 import { toast } from 'sonner';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,6 +62,17 @@ export function DropdownSettings() {
   const updateWhatsAppTemplate = useClientStore((state) => state.updateWhatsAppTemplate);
   const deleteWhatsAppTemplate = useClientStore((state) => state.deleteWhatsAppTemplate);
 
+  // Saved links state
+  const savedLinks = useClientStore((state) => state.savedLinks);
+  const addSavedLink = useClientStore((state) => state.addSavedLink);
+  const deleteSavedLinkRecord = useClientStore((state) => state.deleteSavedLinkRecord);
+
+  // Template media state
+  const videoTemplates = useClientStore((state) => state.videoTemplates);
+  const imageTemplates = useClientStore((state) => state.imageTemplates);
+  const addTemplateMedia = useClientStore((state) => state.addTemplateMedia);
+  const deleteTemplateMediaRecord = useClientStore((state) => state.deleteTemplateMediaRecord);
+
   const [newFieldName, setNewFieldName] = useState('');
   const [newFieldOptions, setNewFieldOptions] = useState('');
   const [editingField, setEditingField] = useState<{ id: string; name: string } | null>(null);
@@ -69,6 +89,34 @@ export function DropdownSettings() {
   const [newTemplateLabel, setNewTemplateLabel] = useState('');
   const [newTemplateMessage, setNewTemplateMessage] = useState('');
   const [editingTemplate, setEditingTemplate] = useState<{ id: string; emoji: string; label: string; message: string } | null>(null);
+
+  // Saved links form state
+  const [newLinkName, setNewLinkName] = useState('');
+  const [newLinkUrl, setNewLinkUrl] = useState('');
+
+  // Media templates form state
+  const [waTemplates, setWaTemplates] = useState<{name: string, language: string}[]>([]);
+  const [loadingWaTemplates, setLoadingWaTemplates] = useState(true);
+  const [newVideoTemplateName, setNewVideoTemplateName] = useState('');
+  const [newVideoUrl, setNewVideoUrl] = useState('');
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
+  const videoFileInputRef = useRef<HTMLInputElement>(null);
+
+  const [newImageTemplateName, setNewImageTemplateName] = useState('');
+  const [newImageUrl, setNewImageUrl] = useState('');
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [imageUploadProgress, setImageUploadProgress] = useState(0);
+  const imageFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch WA Templates
+  useEffect(() => {
+    fetch('/api/whatsapp/templates')
+      .then((r) => r.json())
+      .then((data) => setWaTemplates(data.templates || []))
+      .catch(console.error)
+      .finally(() => setLoadingWaTemplates(false));
+  }, []);
 
   // Reset editing states when dropdowns update from other devices
   useEffect(() => {
@@ -259,6 +307,128 @@ export function DropdownSettings() {
       toast.success(`Template "${label}" deleted!`);
     } catch (error: any) {
       toast.error(error.message || 'Failed to delete template');
+    }
+  };
+
+  // Saved link handlers
+  const handleAddSavedLink = async () => {
+    if (!newLinkName.trim() || !newLinkUrl.trim()) {
+      toast.error('Please fill in both name and URL');
+      return;
+    }
+    
+    // Basic URL validation
+    let finalUrl = newLinkUrl.trim();
+    if (!/^https?:\/\//i.test(finalUrl)) {
+      finalUrl = 'https://' + finalUrl;
+    }
+
+    try {
+      await addSavedLink(newLinkName.trim(), finalUrl);
+      setNewLinkName('');
+      setNewLinkUrl('');
+      toast.success(`Link "${newLinkName}" added successfully!`);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to add link');
+    }
+  };
+
+  const handleDeleteSavedLink = async (id: string, name: string) => {
+    try {
+      await deleteSavedLinkRecord(id);
+      toast.success(`Link "${name}" deleted!`);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete link');
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'video' | 'image') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = type === 'video' ? ['video/mp4'] : ['image/jpeg', 'image/png'];
+    if (!validTypes.includes(file.type)) {
+      toast.error(`Only ${type === 'video' ? '.mp4' : '.jpg and .png'} files are supported`);
+      return;
+    }
+
+    if (type === 'video') {
+      setIsUploadingVideo(true);
+      setVideoUploadProgress(0);
+    } else {
+      setIsUploadingImage(true);
+      setImageUploadProgress(0);
+    }
+
+    const storageRef = ref(storage, `whatsapp_media/${Date.now()}_${file.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+
+    uploadTask.on(
+      'state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        if (type === 'video') setVideoUploadProgress(progress);
+        else setImageUploadProgress(progress);
+      },
+      (error) => {
+        console.error('Upload failed:', error);
+        toast.error('File upload failed');
+        if (type === 'video') setIsUploadingVideo(false);
+        else setIsUploadingImage(false);
+      },
+      () => {
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+          if (type === 'video') {
+            setNewVideoUrl(downloadURL);
+            setIsUploadingVideo(false);
+            setVideoUploadProgress(0);
+          } else {
+            setNewImageUrl(downloadURL);
+            setIsUploadingImage(false);
+            setImageUploadProgress(0);
+          }
+        });
+      }
+    );
+    e.target.value = '';
+  };
+
+  const handleAddTemplateMedia = async (type: 'video' | 'image') => {
+    const templateName = type === 'video' ? newVideoTemplateName : newImageTemplateName;
+    const url = type === 'video' ? newVideoUrl : newImageUrl;
+
+    if (!templateName || !url.trim()) {
+      toast.error('Please select a template and provide a media URL');
+      return;
+    }
+
+    // Basic URL validation
+    let finalUrl = url.trim();
+    if (!/^https?:\/\//i.test(finalUrl)) {
+      finalUrl = 'https://' + finalUrl;
+    }
+
+    try {
+      await addTemplateMedia(type, templateName, finalUrl);
+      if (type === 'video') {
+        setNewVideoTemplateName('');
+        setNewVideoUrl('');
+      } else {
+        setNewImageTemplateName('');
+        setNewImageUrl('');
+      }
+      toast.success(`${type === 'video' ? 'Video' : 'Image'} template mapped successfully!`);
+    } catch (error: any) {
+      toast.error(error.message || `Failed to map ${type} template`);
+    }
+  };
+
+  const handleDeleteTemplateMedia = async (id: string, type: 'video' | 'image') => {
+    try {
+      await deleteTemplateMediaRecord(id, type);
+      toast.success('Mapping deleted!');
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to delete mapping');
     }
   };
 
@@ -562,6 +732,305 @@ export function DropdownSettings() {
                   {whatsappTemplates.length}/8 templates created
                 </p>
               )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Saved Links */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <LinkIcon className="h-5 w-5 text-blue-500" />
+            Saved Links
+          </CardTitle>
+          <CardDescription>
+            Add important URLs and resources for quick access
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Add New Link Form */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1">
+              <Input
+                placeholder="Link name (e.g., Company Wiki)"
+                value={newLinkName}
+                onChange={(e) => setNewLinkName(e.target.value)}
+              />
+            </div>
+            <div className="flex-[2]">
+              <Input
+                placeholder="URL (e.g., https://example.com)"
+                value={newLinkUrl}
+                onChange={(e) => setNewLinkUrl(e.target.value)}
+              />
+            </div>
+            <Button onClick={handleAddSavedLink} disabled={!newLinkName.trim() || !newLinkUrl.trim()}>
+              <Save className="h-4 w-4 mr-2" />
+              Save
+            </Button>
+          </div>
+
+          {/* Existing Links */}
+          {(!savedLinks || savedLinks.length === 0) ? (
+            <div className="text-center py-6 px-4">
+              <div className="mx-auto w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center mb-3">
+                <LinkIcon className="h-6 w-6 text-blue-500" />
+              </div>
+              <p className="text-sm text-muted-foreground">No links added yet</p>
+              <p className="text-xs text-muted-foreground mt-1">Add your first link above</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {savedLinks.map((link) => (
+                <div
+                  key={link.id}
+                  className="flex items-center justify-between p-3 rounded-lg border group hover:shadow-sm transition-all bg-card"
+                >
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className="font-medium text-sm truncate">{link.name}</span>
+                    <a 
+                      href={link.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-500 hover:underline truncate flex items-center gap-1 mt-0.5"
+                    >
+                      {link.url}
+                      <ExternalLink className="h-3 w-3 inline" />
+                    </a>
+                  </div>
+                  <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete "{link.name}"?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will remove the link from the saved links list.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={() => handleDeleteSavedLink(link.id, link.name)}
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Video Templates */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Video className="h-5 w-5 text-indigo-500" />
+            Video Templates
+          </CardTitle>
+          <CardDescription>
+            Map WhatsApp templates to default video URLs. Max 15 entries.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {videoTemplates.length >= 15 && (
+            <div className="bg-yellow-50 text-yellow-800 text-sm p-3 rounded-lg border border-yellow-200">
+              You have reached the maximum of 15 video templates. Delete one to add another.
+            </div>
+          )}
+          
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1">
+              <Select
+                value={newVideoTemplateName}
+                onValueChange={setNewVideoTemplateName}
+                disabled={videoTemplates.length >= 15}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingWaTemplates ? "Loading templates..." : "Select Template"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {waTemplates.map((t) => (
+                    <SelectItem key={t.name} value={t.name}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-[2] flex gap-2">
+              <Input
+                placeholder="Video URL"
+                value={newVideoUrl}
+                onChange={(e) => setNewVideoUrl(e.target.value)}
+                disabled={videoTemplates.length >= 15}
+              />
+              <input
+                type="file"
+                className="hidden"
+                ref={videoFileInputRef}
+                accept="video/mp4"
+                onChange={(e) => handleFileUpload(e, 'video')}
+              />
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => videoFileInputRef.current?.click()}
+                disabled={isUploadingVideo || videoTemplates.length >= 15}
+                className="shrink-0"
+              >
+                {isUploadingVideo ? (
+                  `${Math.round(videoUploadProgress)}%`
+                ) : (
+                  <>
+                    <UploadCloud className="mr-2 h-4 w-4" />
+                    Upload
+                  </>
+                )}
+              </Button>
+            </div>
+            <Button 
+              onClick={() => handleAddTemplateMedia('video')} 
+              disabled={!newVideoTemplateName || !newVideoUrl.trim() || videoTemplates.length >= 15}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save
+            </Button>
+          </div>
+
+          {videoTemplates.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+              {videoTemplates.map((item) => (
+                <div key={item.id} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:shadow-sm transition-all group">
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className="font-medium text-sm truncate">{item.templateName}</span>
+                    <a href={item.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline truncate flex items-center gap-1 mt-0.5">
+                      {item.mediaUrl}
+                      <ExternalLink className="h-3 w-3 inline" />
+                    </a>
+                  </div>
+                  <Button size="icon" variant="ghost" className="h-7 w-7 ml-2 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteTemplateMedia(item.id, 'video')}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-6 px-4">
+              <p className="text-sm text-muted-foreground">No video templates mapped yet</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Image Templates */}
+      <Card className="border-border/50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ImageIcon className="h-5 w-5 text-fuchsia-500" />
+            Image Templates
+          </CardTitle>
+          <CardDescription>
+            Map WhatsApp templates to default image URLs. Max 15 entries.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {imageTemplates.length >= 15 && (
+            <div className="bg-yellow-50 text-yellow-800 text-sm p-3 rounded-lg border border-yellow-200">
+              You have reached the maximum of 15 image templates. Delete one to add another.
+            </div>
+          )}
+          
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1">
+              <Select
+                value={newImageTemplateName}
+                onValueChange={setNewImageTemplateName}
+                disabled={imageTemplates.length >= 15}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingWaTemplates ? "Loading templates..." : "Select Template"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {waTemplates.map((t) => (
+                    <SelectItem key={t.name} value={t.name}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-[2] flex gap-2">
+              <Input
+                placeholder="Image URL"
+                value={newImageUrl}
+                onChange={(e) => setNewImageUrl(e.target.value)}
+                disabled={imageTemplates.length >= 15}
+              />
+              <input
+                type="file"
+                className="hidden"
+                ref={imageFileInputRef}
+                accept="image/jpeg,image/png"
+                onChange={(e) => handleFileUpload(e, 'image')}
+              />
+              <Button
+                variant="outline"
+                type="button"
+                onClick={() => imageFileInputRef.current?.click()}
+                disabled={isUploadingImage || imageTemplates.length >= 15}
+                className="shrink-0"
+              >
+                {isUploadingImage ? (
+                  `${Math.round(imageUploadProgress)}%`
+                ) : (
+                  <>
+                    <UploadCloud className="mr-2 h-4 w-4" />
+                    Upload
+                  </>
+                )}
+              </Button>
+            </div>
+            <Button 
+              onClick={() => handleAddTemplateMedia('image')} 
+              disabled={!newImageTemplateName || !newImageUrl.trim() || imageTemplates.length >= 15}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              Save
+            </Button>
+          </div>
+
+          {imageTemplates.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+              {imageTemplates.map((item) => (
+                <div key={item.id} className="flex items-center justify-between p-3 rounded-lg border bg-card hover:shadow-sm transition-all group">
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className="font-medium text-sm truncate">{item.templateName}</span>
+                    <a href={item.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline truncate flex items-center gap-1 mt-0.5">
+                      {item.mediaUrl}
+                      <ExternalLink className="h-3 w-3 inline" />
+                    </a>
+                  </div>
+                  <Button size="icon" variant="ghost" className="h-7 w-7 ml-2 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteTemplateMedia(item.id, 'image')}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-6 px-4">
+              <p className="text-sm text-muted-foreground">No image templates mapped yet</p>
             </div>
           )}
         </CardContent>

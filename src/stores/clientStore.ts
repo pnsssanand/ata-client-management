@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Client, DropdownField, User, InternSession, LeadStatusSnapshot, InternName, WhatsAppTemplate, MessageLog } from '@/types/client';
+import { Client, DropdownField, User, InternSession, LeadStatusSnapshot, InternName, WhatsAppTemplate, MessageLog, SavedLink, TemplateMedia } from '@/types/client';
 import {
   saveClient,
   deleteClientFromFirestore,
@@ -17,7 +17,13 @@ import {
   deleteWhatsAppTemplate,
   subscribeToWhatsAppTemplates,
   saveMessageLog,
-  subscribeToMessageLogs
+  subscribeToMessageLogs,
+  saveSavedLink,
+  deleteSavedLink,
+  subscribeToSavedLinks,
+  saveTemplateMedia,
+  deleteTemplateMedia,
+  subscribeToTemplateMedia
 } from '@/lib/firestore';
 
 // Debounce utility for optimizing frequent updates
@@ -43,6 +49,9 @@ interface ClientStore {
   internNames: InternName[];
   whatsappTemplates: WhatsAppTemplate[];
   messageLogs: MessageLog[];
+  savedLinks: SavedLink[];
+  videoTemplates: TemplateMedia[];
+  imageTemplates: TemplateMedia[];
   searchQuery: string;
   filterStatus: string;
   filterPriority: string;
@@ -59,6 +68,9 @@ interface ClientStore {
   unsubscribeInternNames: (() => void) | null;
   unsubscribeWhatsAppTemplates: (() => void) | null;
   unsubscribeMessageLogs: (() => void) | null;
+  unsubscribeSavedLinks: (() => void) | null;
+  unsubscribeVideoTemplates: (() => void) | null;
+  unsubscribeImageTemplates: (() => void) | null;
   setSearchQuery: (query: string) => void;
   setFilterStatus: (status: string) => void;
   setFilterPriority: (priority: string) => void;
@@ -95,6 +107,11 @@ interface ClientStore {
   deleteWhatsAppTemplate: (id: string) => Promise<void>;
   // Message log methods
   addMessageLog: (log: Omit<MessageLog, 'id'>) => Promise<void>;
+  addSavedLink: (name: string, url: string) => Promise<void>;
+  deleteSavedLinkRecord: (id: string) => Promise<void>;
+  addTemplateMedia: (type: 'video' | 'image', templateName: string, mediaUrl: string) => Promise<void>;
+  updateTemplateMedia: (id: string, type: 'video' | 'image', updates: Partial<TemplateMedia>) => Promise<void>;
+  deleteTemplateMediaRecord: (id: string, type: 'video' | 'image') => Promise<void>;
 }
 
 export const useClientStore = create<ClientStore>()((set, get) => ({
@@ -105,6 +122,9 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   internNames: [],
   whatsappTemplates: [],
   messageLogs: [],
+  savedLinks: [],
+  videoTemplates: [],
+  imageTemplates: [],
   searchQuery: '',
   filterStatus: 'all',
   filterPriority: 'all',
@@ -121,6 +141,9 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   unsubscribeInternNames: null,
   unsubscribeWhatsAppTemplates: null,
   unsubscribeMessageLogs: null,
+  unsubscribeSavedLinks: null,
+  unsubscribeVideoTemplates: null,
+  unsubscribeImageTemplates: null,
   
   setSearchQuery: (query) => set({ searchQuery: query }),
   setFilterStatus: (status) => set({ filterStatus: status }),
@@ -128,7 +151,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   setFilterCallOutcome: (callOutcome) => set({ filterCallOutcome: callOutcome }),
   
   initializeFirebase: (userId?: string) => {
-    const { isInitialized, unsubscribeClients, unsubscribeDropdowns, unsubscribeInternSessions, unsubscribeInternNames, unsubscribeWhatsAppTemplates, unsubscribeMessageLogs } = get();
+    const { isInitialized, unsubscribeClients, unsubscribeDropdowns, unsubscribeInternSessions, unsubscribeInternNames, unsubscribeWhatsAppTemplates, unsubscribeMessageLogs, unsubscribeSavedLinks, unsubscribeVideoTemplates, unsubscribeImageTemplates } = get();
 
     if (isInitialized) return;
 
@@ -142,6 +165,9 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     if (unsubscribeInternNames) unsubscribeInternNames();
     if (unsubscribeWhatsAppTemplates) unsubscribeWhatsAppTemplates();
     if (unsubscribeMessageLogs) unsubscribeMessageLogs();
+    if (unsubscribeSavedLinks) unsubscribeSavedLinks();
+    if (unsubscribeVideoTemplates) unsubscribeVideoTemplates();
+    if (unsubscribeImageTemplates) unsubscribeImageTemplates();
 
     // Subscribe to clients (pass userId to use user-specific collection)
     const clientsUnsub = subscribeToClients(
@@ -245,6 +271,33 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       userId
     );
 
+    // Subscribe to saved links
+    const savedLinksUnsub = subscribeToSavedLinks(
+      (savedLinks) => {
+        set({ savedLinks });
+      },
+      (error) => {
+        console.error('Saved links subscription error:', error);
+      },
+      userId
+    );
+
+    // Subscribe to video templates
+    const videoTemplatesUnsub = subscribeToTemplateMedia(
+      'video',
+      (videoTemplates) => set({ videoTemplates }),
+      (error) => console.error('Video templates subscription error:', error),
+      userId
+    );
+
+    // Subscribe to image templates
+    const imageTemplatesUnsub = subscribeToTemplateMedia(
+      'image',
+      (imageTemplates) => set({ imageTemplates }),
+      (error) => console.error('Image templates subscription error:', error),
+      userId
+    );
+
     set({
       isInitialized: true,
       unsubscribeClients: clientsUnsub,
@@ -252,18 +305,24 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       unsubscribeInternSessions: internSessionsUnsub,
       unsubscribeInternNames: internNamesUnsub,
       unsubscribeWhatsAppTemplates: whatsAppTemplatesUnsub,
-      unsubscribeMessageLogs: messageLogsUnsub
+      unsubscribeMessageLogs: messageLogsUnsub,
+      unsubscribeSavedLinks: savedLinksUnsub,
+      unsubscribeVideoTemplates: videoTemplatesUnsub,
+      unsubscribeImageTemplates: imageTemplatesUnsub
     });
   },
 
   cleanup: () => {
-    const { unsubscribeClients, unsubscribeDropdowns, unsubscribeInternSessions, unsubscribeInternNames, unsubscribeWhatsAppTemplates, unsubscribeMessageLogs } = get();
+    const { unsubscribeClients, unsubscribeDropdowns, unsubscribeInternSessions, unsubscribeInternNames, unsubscribeWhatsAppTemplates, unsubscribeMessageLogs, unsubscribeSavedLinks, unsubscribeVideoTemplates, unsubscribeImageTemplates } = get();
     if (unsubscribeClients) unsubscribeClients();
     if (unsubscribeDropdowns) unsubscribeDropdowns();
     if (unsubscribeInternSessions) unsubscribeInternSessions();
     if (unsubscribeInternNames) unsubscribeInternNames();
     if (unsubscribeWhatsAppTemplates) unsubscribeWhatsAppTemplates();
     if (unsubscribeMessageLogs) unsubscribeMessageLogs();
+    if (unsubscribeSavedLinks) unsubscribeSavedLinks();
+    if (unsubscribeVideoTemplates) unsubscribeVideoTemplates();
+    if (unsubscribeImageTemplates) unsubscribeImageTemplates();
     set({
       clients: [],
       dropdowns: [],
@@ -272,6 +331,9 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       internNames: [],
       whatsappTemplates: [],
       messageLogs: [],
+      savedLinks: [],
+      videoTemplates: [],
+      imageTemplates: [],
       currentUserId: null,
       isInitialized: false,
       isLoading: true,
@@ -281,7 +343,10 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       unsubscribeInternSessions: null,
       unsubscribeInternNames: null,
       unsubscribeWhatsAppTemplates: null,
-      unsubscribeMessageLogs: null
+      unsubscribeMessageLogs: null,
+      unsubscribeSavedLinks: null,
+      unsubscribeVideoTemplates: null,
+      unsubscribeImageTemplates: null
     });
   },
   
@@ -1016,6 +1081,127 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       await saveMessageLog(fullLog, currentUserId || undefined);
     } catch (error) {
       console.error('Error saving message log:', error);
+    }
+  },
+
+  addSavedLink: async (name, url) => {
+    const { savedLinks, currentUserId, currentUser } = get();
+    const newLink: SavedLink = {
+      id: `link-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name,
+      url,
+      createdAt: new Date(),
+      createdBy: currentUser?.email || 'system'
+    };
+    set((state) => ({ savedLinks: [...state.savedLinks, newLink] }));
+    try {
+      await saveSavedLink(newLink, currentUserId || undefined);
+    } catch (error) {
+      console.error('Error adding saved link:', error);
+      set((state) => ({ savedLinks: state.savedLinks.filter(l => l.id !== newLink.id) }));
+      throw error;
+    }
+  },
+
+  deleteSavedLinkRecord: async (id) => {
+    const { savedLinks, currentUserId } = get();
+    const link = savedLinks.find(l => l.id === id);
+    if (!link) return;
+    set((state) => ({ savedLinks: state.savedLinks.filter(l => l.id !== id) }));
+    try {
+      await deleteSavedLink(id, currentUserId || undefined);
+    } catch (error) {
+      console.error('Error deleting saved link:', error);
+      set((state) => ({ savedLinks: [...state.savedLinks, link] }));
+      throw error;
+    }
+  },
+
+  addTemplateMedia: async (type, templateName, mediaUrl) => {
+    const { currentUserId, currentUser, videoTemplates, imageTemplates } = get();
+    // Enforce limit of 15
+    const currentList = type === 'video' ? videoTemplates : imageTemplates;
+    if (currentList.length >= 15) {
+      throw new Error(`Maximum of 15 ${type} templates allowed`);
+    }
+
+    const newMedia: TemplateMedia = {
+      id: `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      type,
+      templateName,
+      mediaUrl,
+      createdAt: new Date(),
+      createdBy: currentUser?.email || 'system'
+    };
+
+    if (type === 'video') {
+      set((state) => ({ videoTemplates: [...state.videoTemplates, newMedia] }));
+    } else {
+      set((state) => ({ imageTemplates: [...state.imageTemplates, newMedia] }));
+    }
+
+    try {
+      await saveTemplateMedia(newMedia, currentUserId || undefined);
+    } catch (error) {
+      console.error(`Error adding ${type} template media:`, error);
+      if (type === 'video') {
+        set((state) => ({ videoTemplates: state.videoTemplates.filter(l => l.id !== newMedia.id) }));
+      } else {
+        set((state) => ({ imageTemplates: state.imageTemplates.filter(l => l.id !== newMedia.id) }));
+      }
+      throw error;
+    }
+  },
+
+  updateTemplateMedia: async (id, type, updates) => {
+    const { currentUserId, videoTemplates, imageTemplates } = get();
+    const currentList = type === 'video' ? videoTemplates : imageTemplates;
+    const item = currentList.find(l => l.id === id);
+    if (!item) return;
+
+    const updatedItem = { ...item, ...updates };
+
+    if (type === 'video') {
+      set((state) => ({ videoTemplates: state.videoTemplates.map(l => l.id === id ? updatedItem : l) }));
+    } else {
+      set((state) => ({ imageTemplates: state.imageTemplates.map(l => l.id === id ? updatedItem : l) }));
+    }
+
+    try {
+      await saveTemplateMedia(updatedItem, currentUserId || undefined);
+    } catch (error) {
+      console.error(`Error updating ${type} template media:`, error);
+      if (type === 'video') {
+        set((state) => ({ videoTemplates: state.videoTemplates.map(l => l.id === id ? item : l) }));
+      } else {
+        set((state) => ({ imageTemplates: state.imageTemplates.map(l => l.id === id ? item : l) }));
+      }
+      throw error;
+    }
+  },
+
+  deleteTemplateMediaRecord: async (id, type) => {
+    const { currentUserId, videoTemplates, imageTemplates } = get();
+    const currentList = type === 'video' ? videoTemplates : imageTemplates;
+    const item = currentList.find(l => l.id === id);
+    if (!item) return;
+
+    if (type === 'video') {
+      set((state) => ({ videoTemplates: state.videoTemplates.filter(l => l.id !== id) }));
+    } else {
+      set((state) => ({ imageTemplates: state.imageTemplates.filter(l => l.id !== id) }));
+    }
+
+    try {
+      await deleteTemplateMedia(id, type, currentUserId || undefined);
+    } catch (error) {
+      console.error(`Error deleting ${type} template media:`, error);
+      if (type === 'video') {
+        set((state) => ({ videoTemplates: [...state.videoTemplates, item] }));
+      } else {
+        set((state) => ({ imageTemplates: [...state.imageTemplates, item] }));
+      }
+      throw error;
     }
   }
 }));

@@ -9,7 +9,7 @@ import {
   DocumentData
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Client, DropdownField, Note, InternSession, LeadStatusSnapshot, InternName, WhatsAppTemplate, MessageLog } from '@/types/client';
+import { Client, DropdownField, Note, InternSession, LeadStatusSnapshot, InternName, WhatsAppTemplate, MessageLog, SavedLink, TemplateMedia } from '@/types/client';
 
 // Helper to get user-specific collection path
 const getUserClientsCollection = (userId: string) => `users/${userId}/clients`;
@@ -18,6 +18,8 @@ const getUserInternSessionsCollection = (userId: string) => `users/${userId}/int
 const getUserInternNamesCollection = (userId: string) => `users/${userId}/internNames`;
 const getUserWhatsAppTemplatesCollection = (userId: string) => `users/${userId}/whatsappTemplates`;
 const getUserMessageLogsCollection = (userId: string) => `users/${userId}/messageLogs`;
+const getUserSavedLinksCollection = (userId: string) => `users/${userId}/savedLinks`;
+const getUserTemplateMediaCollection = (userId: string, type: 'video' | 'image') => `users/${userId}/${type}Templates`;
 
 // Legacy collection references (for backward compatibility with existing data)
 const LEGACY_CLIENTS_COLLECTION = 'clients';
@@ -26,6 +28,8 @@ const LEGACY_INTERN_SESSIONS_COLLECTION = 'internSessions';
 const LEGACY_INTERN_NAMES_COLLECTION = 'internNames';
 const LEGACY_MESSAGE_LOGS_COLLECTION = 'messageLogs';
 const LEGACY_WHATSAPP_TEMPLATES_COLLECTION = 'whatsappTemplates';
+const LEGACY_SAVED_LINKS_COLLECTION = 'savedLinks';
+const getLegacyTemplateMediaCollection = (type: 'video' | 'image') => `${type}Templates`;
 
 // Legacy user ID - this user uses the old collection structure
 const LEGACY_USER_ID = 'anandtravelagency';
@@ -81,6 +85,20 @@ const getMessageLogsCollectionPath = (userId?: string): string => {
     return LEGACY_MESSAGE_LOGS_COLLECTION;
   }
   return getUserMessageLogsCollection(userId);
+};
+
+const getSavedLinksCollectionPath = (userId?: string): string => {
+  if (!userId || userId === LEGACY_USER_ID) {
+    return LEGACY_SAVED_LINKS_COLLECTION;
+  }
+  return getUserSavedLinksCollection(userId);
+};
+
+const getTemplateMediaCollectionPath = (userId: string | undefined, type: 'video' | 'image'): string => {
+  if (!userId || userId === LEGACY_USER_ID) {
+    return getLegacyTemplateMediaCollection(type);
+  }
+  return getUserTemplateMediaCollection(userId, type);
 };
 
 // Convert Date to Firestore Timestamp
@@ -535,6 +553,127 @@ export const subscribeToMessageLogs = (
     },
     (error) => {
       console.error('Error subscribing to message logs:', error);
+      onError?.(error);
+    }
+  );
+};
+
+// SavedLink operations
+
+const savedLinkToFirestore = (link: SavedLink): DocumentData => {
+  return {
+    id: link.id,
+    name: link.name,
+    url: link.url,
+    createdAt: dateToTimestamp(link.createdAt),
+    createdBy: link.createdBy
+  };
+};
+
+const firestoreToSavedLink = (data: DocumentData): SavedLink => {
+  return {
+    id: data.id,
+    name: data.name,
+    url: data.url,
+    createdAt: timestampToDate(data.createdAt),
+    createdBy: data.createdBy
+  };
+};
+
+export const saveSavedLink = async (link: SavedLink, userId?: string): Promise<void> => {
+  const collectionPath = getSavedLinksCollectionPath(userId);
+  const linkRef = doc(db, collectionPath, link.id);
+  await setDoc(linkRef, savedLinkToFirestore(link));
+};
+
+export const deleteSavedLink = async (linkId: string, userId?: string): Promise<void> => {
+  const collectionPath = getSavedLinksCollectionPath(userId);
+  const linkRef = doc(db, collectionPath, linkId);
+  await deleteDoc(linkRef);
+};
+
+export const subscribeToSavedLinks = (
+  onLinksChange: (links: SavedLink[]) => void,
+  onError?: (error: Error) => void,
+  userId?: string
+) => {
+  const collectionPath = getSavedLinksCollectionPath(userId);
+  const linksRef = collection(db, collectionPath);
+
+  return onSnapshot(
+    linksRef,
+    (snapshot) => {
+      const links: SavedLink[] = [];
+      snapshot.forEach((doc) => {
+        links.push(firestoreToSavedLink(doc.data()));
+      });
+      links.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      onLinksChange(links);
+    },
+    (error) => {
+      console.error('Error subscribing to saved links:', error);
+      onError?.(error);
+    }
+  );
+};
+
+// TemplateMedia operations
+
+const templateMediaToFirestore = (media: TemplateMedia): DocumentData => {
+  return {
+    id: media.id,
+    type: media.type,
+    templateName: media.templateName,
+    mediaUrl: media.mediaUrl,
+    createdAt: dateToTimestamp(media.createdAt),
+    createdBy: media.createdBy
+  };
+};
+
+const firestoreToTemplateMedia = (data: DocumentData, type: 'video' | 'image'): TemplateMedia => {
+  return {
+    id: data.id,
+    type: data.type || type,
+    templateName: data.templateName,
+    mediaUrl: data.mediaUrl,
+    createdAt: timestampToDate(data.createdAt),
+    createdBy: data.createdBy
+  };
+};
+
+export const saveTemplateMedia = async (media: TemplateMedia, userId?: string): Promise<void> => {
+  const collectionPath = getTemplateMediaCollectionPath(userId, media.type);
+  const mediaRef = doc(db, collectionPath, media.id);
+  await setDoc(mediaRef, templateMediaToFirestore(media));
+};
+
+export const deleteTemplateMedia = async (mediaId: string, type: 'video' | 'image', userId?: string): Promise<void> => {
+  const collectionPath = getTemplateMediaCollectionPath(userId, type);
+  const mediaRef = doc(db, collectionPath, mediaId);
+  await deleteDoc(mediaRef);
+};
+
+export const subscribeToTemplateMedia = (
+  type: 'video' | 'image',
+  onMediaChange: (media: TemplateMedia[]) => void,
+  onError?: (error: Error) => void,
+  userId?: string
+) => {
+  const collectionPath = getTemplateMediaCollectionPath(userId, type);
+  const mediaRef = collection(db, collectionPath);
+
+  return onSnapshot(
+    mediaRef,
+    (snapshot) => {
+      const medias: TemplateMedia[] = [];
+      snapshot.forEach((doc) => {
+        medias.push(firestoreToTemplateMedia(doc.data(), type));
+      });
+      medias.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      onMediaChange(medias);
+    },
+    (error) => {
+      console.error(`Error subscribing to ${type} templates:`, error);
       onError?.(error);
     }
   );

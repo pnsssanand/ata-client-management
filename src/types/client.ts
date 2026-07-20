@@ -92,3 +92,20 @@ export interface MessageLog {
   error?: string;
   sentAt: Date;
 }
+
+export interface SavedLink {
+  id: string;
+  name: string;
+  url: string;
+  createdAt: Date;
+  createdBy: string;
+}
+
+export interface TemplateMedia {
+  id: string;
+  type: 'video' | 'image';
+  templateName: string;
+  mediaUrl: string;
+  createdAt: Date;
+  createdBy: string;
+}
