@@ -389,7 +389,7 @@ export function SendMessageDialog({
 
             {/* Recipients */}
             <div>
-              <label className="mb-2 block text-sm font-medium">Recipients</label>
+              <label className="mb-2 block text-sm font-medium"> Recipients</label>
               <ScrollArea className="max-h-32 rounded-lg border p-2">
                 {selectedClients.map((c) => (
                   <div
