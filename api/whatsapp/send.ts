@@ -19,7 +19,14 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'to and templateName are required' });
     }
 
-    const phone = String(to).replace(/\D/g, '');
+    let phone = String(to).replace(/\D/g, '');
+    
+    // Add country code if it's a 10-digit Indian number
+    if (phone.length === 10) {
+      phone = `91${phone}`;
+    } else if (phone.length === 11 && phone.startsWith('0')) {
+      phone = `91${phone.substring(1)}`;
+    }
 
     const messageBody = {
       messaging_product: 'whatsapp',
@@ -44,7 +51,7 @@ export default async function handler(req: any, res: any) {
       }
     );
 
-    const data = await response.json();
+    const data = (await response.json()) as any;
 
     if (!response.ok) {
       return res.status(response.status).json({

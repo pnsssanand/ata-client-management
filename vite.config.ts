@@ -48,7 +48,7 @@ function whatsappApiPlugin(): Plugin {
               { headers: { Authorization: `Bearer ${token}` } }
             );
 
-            const data = await response.json();
+            const data = (await response.json()) as any;
 
             if (!response.ok) {
               res.writeHead(response.status, {
@@ -115,7 +115,14 @@ function whatsappApiPlugin(): Plugin {
               return;
             }
 
-            const phone = String(to).replace(/\D/g, "");
+            let phone = String(to).replace(/\D/g, "");
+
+            // Add country code if it's a 10-digit Indian number
+            if (phone.length === 10) {
+              phone = `91${phone}`;
+            } else if (phone.length === 11 && phone.startsWith("0")) {
+              phone = `91${phone.substring(1)}`;
+            }
 
             const messageBody = {
               messaging_product: "whatsapp",
@@ -140,7 +147,7 @@ function whatsappApiPlugin(): Plugin {
               }
             );
 
-            const data = await response.json();
+            const data = (await response.json()) as any;
 
             if (!response.ok) {
               res.writeHead(response.status, {

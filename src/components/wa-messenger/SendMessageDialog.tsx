@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -16,9 +16,11 @@ import {
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
-import { Send, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { Send, CheckCircle, XCircle, Loader2, UploadCloud, FileVideo } from 'lucide-react';
 import { Client } from '@/types/client';
 import { useClientStore } from '@/stores/clientStore';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 interface Template {
   name: string;
@@ -51,9 +53,81 @@ export function SendMessageDialog({
   const [loadingTemplates, setLoadingTemplates] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [variables, setVariables] = useState<string[]>([]);
+  const [videoUrl, setVideoUrl] = useState<string>('');
+  
+  // Video upload state
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadFileName, setUploadFileName] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [sending, setSending] = useState(false);
   const [results, setResults] = useState<SendResult[]>([]);
   const addMessageLog = useClientStore((state) => state.addMessageLog);
+
+  // Drag & drop handlers
+  const onDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  }, []);
+
+  const onDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  }, []);
+
+  const onDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      handleFileUpload(files[0]);
+    }
+  }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      handleFileUpload(e.target.files[0]);
+    }
+  };
+
+  const handleFileUpload = (file: File) => {
+    if (!file.type.includes('mp4')) {
+      alert('Please upload an MP4 video file.');
+      return;
+    }
+    if (file.size > 16 * 1024 * 1024) {
+      alert('File is too large. WhatsApp recommends keeping video files under 16MB.');
+      return;
+    }
+
+    const storageRef = ref(storage, `whatsapp_videos/${Date.now()}_${file.name}`);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+
+    setUploadProgress(0);
+    setUploadFileName(file.name);
+    setVideoUrl('');
+
+    uploadTask.on(
+      'state_changed',
+      (snapshot) => {
+        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+        setUploadProgress(progress);
+      },
+      (error) => {
+        console.error('Upload failed:', error);
+        alert('Upload failed: ' + error.message);
+        setUploadProgress(null);
+        setUploadFileName('');
+      },
+      () => {
+        getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+          setVideoUrl(downloadURL);
+          setUploadProgress(null);
+        });
+      }
+    );
+  };
 
   useEffect(() => {
     fetch('/api/whatsapp/templates')
@@ -75,8 +149,15 @@ export function SendMessageDialog({
     setSelectedTemplate(tpl);
     if (tpl) {
       setVariables(new Array(getVariableCount(tpl)).fill(''));
+      const header = tpl.components.find((c) => c.type === 'HEADER');
+      if (header?.format === 'VIDEO') {
+        setVideoUrl('https://www.w3schools.com/html/mov_bbb.mp4');
+      } else {
+        setVideoUrl('');
+      }
     } else {
       setVariables([]);
+      setVideoUrl('');
     }
   }
 
@@ -99,10 +180,26 @@ export function SendMessageDialog({
       .filter((v) => v.length > 0)
       .map((v) => ({ type: 'text' as const, text: v }));
 
-    const components =
-      bodyParams.length > 0
-        ? [{ type: 'body' as const, parameters: bodyParams }]
-        : [];
+    const components: any[] = [];
+
+    const headerComp = selectedTemplate.components.find((c) => c.type === 'HEADER');
+    if (headerComp?.format === 'VIDEO') {
+      components.push({
+        type: 'header',
+        parameters: [
+          {
+            type: 'video',
+            video: {
+              link: videoUrl || 'https://www.w3schools.com/html/mov_bbb.mp4'
+            }
+          }
+        ]
+      });
+    }
+
+    if (bodyParams.length > 0) {
+      components.push({ type: 'body', parameters: bodyParams });
+    }
 
     for (let i = 0; i < selectedClients.length; i++) {
       const client = selectedClients[i];
@@ -307,6 +404,68 @@ export function SendMessageDialog({
                     }}
                   />
                 ))}
+              </div>
+            )}
+
+            {/* Video URL input */}
+            {selectedTemplate?.components.some((c) => c.type === 'HEADER' && c.format === 'VIDEO') && (
+              <div className="space-y-4 mt-4">
+                <div>
+                  <label className="text-sm font-medium">Upload Video (.mp4)</label>
+                  
+                  <div
+                    onDragOver={onDragOver}
+                    onDragLeave={onDragLeave}
+                    onDrop={onDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`mt-2 flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 transition-colors cursor-pointer ${
+                      isDragging
+                        ? 'border-green-500 bg-green-50'
+                        : 'border-muted-foreground/25 hover:bg-muted/50'
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      accept="video/mp4"
+                      className="hidden"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                    />
+                    
+                    {uploadProgress !== null ? (
+                      <div className="w-full text-center space-y-2">
+                        <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground" />
+                        <p className="text-sm font-medium">{uploadFileName}</p>
+                        <Progress value={uploadProgress} className="h-2 w-full" />
+                        <p className="text-xs text-muted-foreground">{Math.round(uploadProgress)}% uploaded</p>
+                      </div>
+                    ) : (
+                      <>
+                        <UploadCloud className="mb-2 h-8 w-8 text-muted-foreground" />
+                        <p className="text-sm font-medium text-foreground">
+                          Click or drag video to upload
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          MP4 files only (max 16MB recommended)
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Or paste Video Link manually</label>
+                  <Input
+                    placeholder="https://example.com/video.mp4"
+                    value={videoUrl}
+                    onChange={(e) => setVideoUrl(e.target.value)}
+                  />
+                  {videoUrl && uploadProgress === null && (
+                     <p className="text-xs text-green-600 flex items-center gap-1 mt-1">
+                        <FileVideo className="h-3 w-3" /> Link attached successfully
+                     </p>
+                  )}
+                </div>
               </div>
             )}
 
