@@ -55,8 +55,16 @@ export interface InternSession {
   exitLeadStatuses?: LeadStatusSnapshot[];
   totalCallsMade?: number;
   conversions?: Record<string, number>; // status -> change count
+  durationMinutes?: number; // Duration of the session in minutes
   isActive: boolean;
   createdAt: Date;
+}
+
+// Payout record for tracking payouts based on work hours
+export interface PayoutRecord {
+  date: string; // YYYY-MM-DD
+  amount: number;
+  hoursWorked: number; // formatted as decimal hours or minutes, but we can store hours as number
 }
 
 // Intern name configuration (managed by admin)
@@ -67,6 +75,8 @@ export interface InternName {
   createdAt: Date;
   isActive: boolean;
   manualSlotBooked?: number; // Manual slot booked count (editable by admin)
+  totalEarnings?: number; // Total earnings in rupees
+  payoutHistory?: PayoutRecord[]; // History of daily payouts
 }
 
 // WhatsApp message template (max 8 templates)

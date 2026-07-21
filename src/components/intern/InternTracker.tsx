@@ -595,7 +595,7 @@ function InternNameCard({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 gap-2">
         <div className="bg-background/60 rounded-lg p-2 text-center">
           <p className="text-xs text-muted-foreground">Sessions</p>
           <p className="font-bold text-lg" style={{ color: intern.color }}>{totalSessions}</p>
@@ -616,6 +616,10 @@ function InternNameCard({
           <p className="text-[10px] text-emerald-600 opacity-0 group-hover/edit:opacity-100 transition-opacity mt-0.5">
             Click to edit
           </p>
+        </div>
+        <div className="bg-emerald-500/10 rounded-lg p-2 text-center border border-emerald-500/30">
+          <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">Total Earnings</p>
+          <p className="font-bold text-lg text-emerald-600 dark:text-emerald-500">₹{intern.totalEarnings || 0}</p>
         </div>
       </div>
 
@@ -746,7 +750,7 @@ function InternHistoryDialog({
 
           <div className="py-4 space-y-4">
             {/* Stats Summary */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
               <div className="bg-muted/50 rounded-lg p-3 text-center">
                 <p className="text-xs text-muted-foreground">Total Sessions</p>
                 <p className="text-2xl font-bold" style={{ color: intern.color }}>{sessions.length}</p>
@@ -770,6 +774,10 @@ function InternHistoryDialog({
                 <p className="text-2xl font-bold" style={{ color: intern.color }}>
                   {sessions.length > 0 ? Math.round(totalLeadChanges / sessions.length) : 0}
                 </p>
+              </div>
+              <div className="bg-emerald-500/10 rounded-lg p-3 text-center border-2 border-emerald-500/30">
+                <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">Total Earnings</p>
+                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-500">₹{intern.totalEarnings || 0}</p>
               </div>
             </div>
 
@@ -815,6 +823,40 @@ function InternHistoryDialog({
                 </Table>
               </div>
             )}
+
+            {/* Payout History Section */}
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                <Activity className="h-5 w-5 text-emerald-500" />
+                Payout History
+              </h3>
+              {(!intern.payoutHistory || intern.payoutHistory.length === 0) ? (
+                <div className="text-center py-6 text-muted-foreground bg-muted/20 rounded-lg">
+                  <p>No payouts recorded yet. Complete 3 hours in a single day to earn!</p>
+                </div>
+              ) : (
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead className="text-center">Hours Worked</TableHead>
+                        <TableHead className="text-right">Amount Credited</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {intern.payoutHistory.map((payout, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell className="font-medium">{payout.date}</TableCell>
+                          <TableCell className="text-center">{payout.hoursWorked}h</TableCell>
+                          <TableCell className="text-right font-bold text-emerald-600">₹{payout.amount}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
           </div>
 
           <DialogFooter>

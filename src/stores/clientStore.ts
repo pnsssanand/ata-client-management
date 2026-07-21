@@ -792,7 +792,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   },
 
   endInternSession: async (sessionId, logoutTime) => {
-    const { internSessions, currentUserId, getLeadStatusSnapshot } = get();
+    const { internSessions, internNames, currentUserId, getLeadStatusSnapshot, updateInternName } = get();
     const session = internSessions.find(s => s.id === sessionId);
     if (!session) return;
 
@@ -824,12 +824,36 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     // Total calls made is approximately half of total movements (since each call moves a lead from one status to another)
     totalCallsMade = Math.ceil(totalCallsMade / 2);
 
+    // Calculate duration in minutes
+    const [loginHours, loginMinutes] = session.loginTime.split(':').map(Number);
+    const [logoutHours, logoutMinutes] = logoutTime.split(':').map(Number);
+    
+    const loginDate = new Date();
+    loginDate.setHours(loginHours, loginMinutes, 0, 0);
+    
+    const logoutDate = new Date();
+    logoutDate.setHours(logoutHours, logoutMinutes, 0, 0);
+
+    // If logout is on the next day (e.g. login 23:00, logout 01:00)
+    if (logoutDate.getTime() < loginDate.getTime()) {
+      logoutDate.setDate(logoutDate.getDate() + 1);
+    }
+    
+    let durationMs = logoutDate.getTime() - loginDate.getTime();
+    let durationMinutes = Math.floor(durationMs / (1000 * 60));
+
+    // Cap at 8 hours (480 mins) to handle edge case of forgot-to-logout
+    if (durationMinutes > 480) {
+      durationMinutes = 480;
+    }
+
     const updatedSession: InternSession = {
       ...session,
       logoutTime,
       exitLeadStatuses,
       conversions,
       totalCallsMade,
+      durationMinutes,
       isActive: false
     };
 
@@ -841,6 +865,44 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
 
     try {
       await saveInternSession(updatedSession, currentUserId || undefined);
+      
+      // Calculate total worked minutes for the day and check for payout
+      const sDate = session.date instanceof Date ? session.date : new Date(session.date as any);
+      const sessionDateString = `${sDate.getFullYear()}-${String(sDate.getMonth() + 1).padStart(2, '0')}-${String(sDate.getDate()).padStart(2, '0')}`;
+      
+      const { internSessions: latestSessions } = get();
+      
+      const sameDaySessions = latestSessions.filter(s => {
+        if (s.internName.toLowerCase() !== session.internName.toLowerCase()) return false;
+        const d = s.date instanceof Date ? s.date : new Date(s.date as any);
+        const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return dStr === sessionDateString && !s.isActive && s.durationMinutes !== undefined;
+      });
+
+      const totalWorkedMinutes = sameDaySessions.reduce((acc, s) => acc + (s.durationMinutes || 0), 0);
+
+      if (totalWorkedMinutes >= 180) {
+        const intern = internNames.find(i => i.name.toLowerCase() === session.internName.toLowerCase());
+        if (intern) {
+          const payoutHistory = intern.payoutHistory || [];
+          const alreadyPaid = payoutHistory.some(p => p.date === sessionDateString);
+          if (!alreadyPaid) {
+            const newPayout = {
+              date: sessionDateString,
+              amount: 117,
+              hoursWorked: parseFloat((totalWorkedMinutes / 60).toFixed(2))
+            };
+            const totalEarnings = (intern.totalEarnings || 0) + 117;
+            
+            // This implicitly saves to firestore
+            await updateInternName(intern.id, {
+              totalEarnings,
+              payoutHistory: [...payoutHistory, newPayout]
+            });
+          }
+        }
+      }
+      
     } catch (error) {
       console.error('Error ending intern session:', error);
       // Rollback

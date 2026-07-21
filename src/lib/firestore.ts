@@ -304,6 +304,7 @@ const internSessionToFirestore = (session: InternSession): DocumentData => {
     exitLeadStatuses: session.exitLeadStatuses || null,
     totalCallsMade: session.totalCallsMade || null,
     conversions: session.conversions || null,
+    durationMinutes: session.durationMinutes || null,
     isActive: session.isActive,
     createdAt: dateToTimestamp(session.createdAt)
   };
@@ -321,6 +322,7 @@ const firestoreToInternSession = (data: DocumentData): InternSession => {
     exitLeadStatuses: data.exitLeadStatuses || undefined,
     totalCallsMade: data.totalCallsMade || undefined,
     conversions: data.conversions || undefined,
+    durationMinutes: data.durationMinutes || undefined,
     isActive: data.isActive ?? true,
     createdAt: timestampToDate(data.createdAt)
   };
@@ -375,7 +377,9 @@ const internNameToFirestore = (internName: InternName): DocumentData => {
     color: internName.color,
     createdAt: dateToTimestamp(internName.createdAt),
     isActive: internName.isActive,
-    manualSlotBooked: internName.manualSlotBooked || 0
+    manualSlotBooked: internName.manualSlotBooked || 0,
+    totalEarnings: internName.totalEarnings || 0,
+    payoutHistory: internName.payoutHistory || []
   };
 };
 
@@ -387,7 +391,9 @@ const firestoreToInternName = (data: DocumentData): InternName => {
     color: data.color,
     createdAt: timestampToDate(data.createdAt),
     isActive: data.isActive ?? true,
-    manualSlotBooked: data.manualSlotBooked || 0
+    manualSlotBooked: data.manualSlotBooked || 0,
+    totalEarnings: data.totalEarnings || 0,
+    payoutHistory: data.payoutHistory || []
   };
 };
 
