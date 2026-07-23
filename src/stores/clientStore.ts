@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { toast } from 'sonner';
 import { Client, DropdownField, User, InternSession, LeadStatusSnapshot, InternName, WhatsAppTemplate, MessageLog, SavedLink, TemplateMedia } from '@/types/client';
 import {
   saveClient,
@@ -395,6 +396,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     const client = clients.find(c => c.id === id);
     if (!client) return;
     
+    const previousClient = { ...client };
     const updatedClient = { ...client, ...updates };
     
     // Optimistically update
@@ -405,6 +407,25 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     // Save to Firebase with user-specific collection
     try {
       await saveClient(updatedClient, currentUserId || undefined);
+      
+      toast.success('Client updated', {
+        duration: 30000,
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            set((state) => ({
+              clients: state.clients.map((c) => c.id === id ? previousClient : c)
+            }));
+            try {
+              await saveClient(previousClient, currentUserId || undefined);
+              toast.success('Update undone');
+            } catch (err) {
+              console.error('Error undoing update:', err);
+              toast.error('Failed to undo update');
+            }
+          }
+        }
+      });
     } catch (error) {
       console.error('Error updating client:', error);
       // Rollback
@@ -418,6 +439,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
   deleteClient: async (id) => {
     const { clients, currentUserId } = get();
     const client = clients.find(c => c.id === id);
+    if (!client) return;
     
     // Optimistically update
     set((state) => ({
@@ -427,6 +449,25 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     // Delete from Firebase with user-specific collection
     try {
       await deleteClientFromFirestore(id, currentUserId || undefined);
+      
+      toast.success('Client deleted', {
+        duration: 30000,
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            set((state) => ({
+              clients: [...state.clients, client]
+            }));
+            try {
+              await saveClient(client, currentUserId || undefined);
+              toast.success('Deletion undone');
+            } catch (err) {
+              console.error('Error undoing deletion:', err);
+              toast.error('Failed to undo deletion');
+            }
+          }
+        }
+      });
     } catch (error) {
       console.error('Error deleting client:', error);
       // Rollback
@@ -451,6 +492,25 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
     // Delete from Firebase with user-specific collection
     try {
       await Promise.all(ids.map(id => deleteClientFromFirestore(id, currentUserId || undefined)));
+      
+      toast.success(`${clientsToDelete.length} clients deleted`, {
+        duration: 30000,
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            set((state) => ({
+              clients: [...state.clients, ...clientsToDelete]
+            }));
+            try {
+              await Promise.all(clientsToDelete.map(c => saveClient(c, currentUserId || undefined)));
+              toast.success('Deletion undone');
+            } catch (err) {
+              console.error('Error undoing multiple deletion:', err);
+              toast.error('Failed to undo deletion');
+            }
+          }
+        }
+      });
     } catch (error) {
       console.error('Error deleting clients:', error);
       // Rollback
@@ -527,10 +587,32 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       }
     };
     
+    const showUndoToast = () => {
+      toast.success(`${fieldName} updated`, {
+        duration: 30000,
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            set((state) => ({
+              clients: state.clients.map((c) => c.id === clientId ? previousClient : c)
+            }));
+            try {
+              await saveClient(previousClient, currentUserId || undefined);
+              toast.success('Update undone');
+            } catch (err) {
+              console.error('Error undoing dropdown update:', err);
+              toast.error('Failed to undo update');
+            }
+          }
+        }
+      });
+    };
+
     if (isImportantField) {
       // Save immediately for important fields and propagate errors
       try {
         await saveFunction();
+        showUndoToast();
       } catch (error) {
         console.error('Error updating dropdown value:', error);
         // Rollback to previous state on error
@@ -543,6 +625,7 @@ export const useClientStore = create<ClientStore>()((set, get) => ({
       // Debounce for other fields to prevent rapid consecutive writes
       const debounceKey = `client-dropdown-${clientId}`;
       debouncedSave(debounceKey, saveFunction, 500);
+      showUndoToast();
     }
   },
   

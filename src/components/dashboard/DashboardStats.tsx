@@ -118,7 +118,9 @@ export function DashboardStats() {
     }, {} as Record<string, number>);
 
     // Create stats for each lead status option
-    const stats = options.map(status => ({
+    const activeOptions = options.length > 0 ? options : Object.keys(counts);
+
+    const stats = activeOptions.map(status => ({
       status,
       count: counts[status] || 0,
       ...getStatusConfig(status)
