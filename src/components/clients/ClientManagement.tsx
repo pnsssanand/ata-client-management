@@ -190,8 +190,8 @@ const StatCard = ({ label, value, icon: Icon, gradient, iconColor, iconBg, onCli
     <CardContent className="p-4 sm:p-5 lg:p-6 relative z-10">
       <div className={cn("absolute inset-0 bg-gradient-to-br opacity-40 transition-opacity duration-300 group-hover:opacity-60 z-0", gradient)} />
       <div className="relative z-10 flex items-center justify-between gap-3">
-        <div className="space-y-1 sm:space-y-2 min-w-0 flex-1">
-          <p className="text-xs sm:text-sm font-semibold text-muted-foreground/90 uppercase tracking-wide truncate">{label}</p>
+        <div className="space-y-1 sm:space-y-2 min-w-0 flex-1 pr-2">
+          <p className="text-xs sm:text-sm font-semibold text-muted-foreground/90 uppercase tracking-wide whitespace-normal leading-tight">{label}</p>
           <p className="text-2xl sm:text-3xl lg:text-4xl font-bold text-foreground group-hover:text-primary transition-colors duration-300">{value}</p>
         </div>
         <div className={cn("p-3 sm:p-3.5 lg:p-4 rounded-2xl transition-all duration-300 group-hover:scale-110 group-hover:rotate-3 shrink-0 shadow-sm", iconBg)}>
@@ -892,15 +892,15 @@ export function ClientManagement() {
       </div>
 
       {/* Tabs */}
-      <div className="bg-card rounded-2xl border border-border/40 p-1.5 sm:p-2 shadow-md overflow-x-auto scrollbar-thin">
+      <div className="bg-card rounded-2xl border border-border/40 p-2 sm:p-3 shadow-md overflow-x-auto scrollbar-thin">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full bg-transparent h-auto p-0 gap-2 flex flex-nowrap sm:flex-wrap min-w-max sm:min-w-0">
+          <TabsList className="w-full bg-transparent h-auto p-0 gap-2.5 flex flex-wrap justify-start">
             {STATUS_TABS.map((tab) => (
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
                 className={cn(
-                  "flex-shrink-0 sm:flex-1 sm:min-w-[110px] px-4 sm:px-5 py-2.5 sm:py-3 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-300",
+                  "flex-none px-4 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 inline-flex items-center justify-center",
                   "data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-primary/90",
                   "data-[state=active]:text-primary-foreground data-[state=active]:shadow-lg data-[state=active]:shadow-primary/25",
                   "data-[state=active]:scale-105",
@@ -909,7 +909,7 @@ export function ClientManagement() {
                   "active:scale-[0.98] touch-manipulation select-none"
                 )}
               >
-                <tab.icon className="h-4 w-4 sm:h-4 sm:w-4 mr-2" />
+                <tab.icon className="h-4 w-4 mr-2 shrink-0" />
                 <span className="whitespace-nowrap">{tab.label}</span>
                 <Badge 
                   variant="secondary" 

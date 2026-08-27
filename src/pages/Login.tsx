@@ -11,14 +11,16 @@ import logo from '@/assets/logo.png';
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuthStore();
+  const { login, signup } = useAuthStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password) {
+    if (!email || !password || (isSignUp && !name)) {
       toast.error('Please fill in all fields');
       return;
     }
@@ -28,15 +30,20 @@ const Login = () => {
     // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 800));
 
-    const success = login(email, password);
+    let success = false;
+    if (isSignUp) {
+      success = await signup(email, password, name);
+    } else {
+      success = await login(email, password);
+    }
 
     if (success) {
-      toast.success('Welcome back!', {
-        description: 'Login successful'
+      toast.success(isSignUp ? 'Account created successfully!' : 'Welcome back!', {
+        description: isSignUp ? 'You are now signed in' : 'Login successful'
       });
     } else {
-      toast.error('Invalid credentials', {
-        description: 'Please check your email and password'
+      toast.error(isSignUp ? 'Failed to create account' : 'Invalid credentials', {
+        description: isSignUp ? 'Email might already be in use' : 'Please check your email and password'
       });
     }
 
@@ -60,13 +67,28 @@ const Login = () => {
         {/* Login Card */}
         <Card className="border-border/50 shadow-xl">
           <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-xl text-center">Sign In</CardTitle>
+            <CardTitle className="text-xl text-center">{isSignUp ? 'Create Account' : 'Sign In'}</CardTitle>
             <CardDescription className="text-center">
-              Enter your credentials to access your account
+              {isSignUp ? 'Enter your details to create an account' : 'Enter your credentials to access your account'}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {isSignUp && (
+                <div className="space-y-2">
+                  <Label htmlFor="name">Name</Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder="Enter your name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="bg-background"
+                    autoComplete="name"
+                  />
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
@@ -117,16 +139,29 @@ const Login = () => {
                 {isLoading ? (
                   <>
                     <div className="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                    Signing in...
+                    {isSignUp ? 'Creating Account...' : 'Signing in...'}
                   </>
                 ) : (
                   <>
                     <LogIn className="h-4 w-4" />
-                    Sign In
+                    {isSignUp ? 'Create Account' : 'Sign In'}
                   </>
                 )}
               </Button>
             </form>
+
+            <div className="mt-6 text-center text-sm">
+              <span className="text-muted-foreground">
+                {isSignUp ? 'Already have an account?' : "Don't have an account?"}
+              </span>{' '}
+              <button
+                type="button"
+                onClick={() => setIsSignUp(!isSignUp)}
+                className="text-primary hover:underline font-medium"
+              >
+                {isSignUp ? 'Sign In' : 'Create one'}
+              </button>
+            </div>
 
             <div className="mt-6 pt-6 border-t border-border">
               <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
