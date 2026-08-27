@@ -15,6 +15,12 @@ export function Header({ title, onMenuClick }: HeaderProps) {
   const { searchQuery, setSearchQuery, isSynced, isLoading, lastSyncTime } = useClientStore();
   const { user } = useAuthStore();
   const [isDark, setIsDark] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (isDark) {
@@ -26,32 +32,47 @@ export function Header({ title, onMenuClick }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-30 bg-background/80 backdrop-blur-lg border-b border-border">
-      <div className="flex items-center justify-between px-4 lg:px-6 py-3 lg:py-4">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between px-4 lg:px-6 py-3 lg:py-4 gap-4">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           {/* Mobile Menu Button */}
           <Button 
             variant="ghost" 
             size="icon"
-            className="lg:hidden"
+            className="lg:hidden shrink-0"
             onClick={onMenuClick}
           >
             <Menu className="h-5 w-5" />
           </Button>
           
-          <div>
-            <h1 className="text-lg lg:text-2xl font-bold text-foreground">{title}</h1>
-            <p className="text-xs lg:text-sm text-muted-foreground hidden sm:block">
-              {new Date().toLocaleDateString('en-IN', { 
-                weekday: 'long', 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric' 
-              })}
-            </p>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg lg:text-2xl font-bold text-foreground truncate">{title}</h1>
+            <div className="text-xs lg:text-sm text-muted-foreground hidden sm:flex items-center gap-2 mt-0.5 min-w-0">
+              <span className="shrink-0">
+                {currentTime.toLocaleDateString('en-IN', { 
+                  weekday: 'long', 
+                  year: 'numeric', 
+                  month: 'long', 
+                  day: 'numeric' 
+                })}
+              </span>
+              <span className="font-mono bg-muted/50 px-1.5 py-0.5 rounded-md text-[11px] lg:text-xs shadow-sm shrink-0">
+                {currentTime.toLocaleTimeString('en-IN', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit'
+                })}
+              </span>
+              {user?.email && (
+                <>
+                  <span className="text-border mx-0.5 shrink-0">•</span>
+                  <span className="truncate text-primary/80 font-medium min-w-0">{user.email}</span>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 lg:gap-4">
+        <div className="flex items-center gap-2 lg:gap-4 shrink-0">
           {/* Search */}
           <div className="relative hidden md:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />

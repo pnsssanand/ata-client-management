@@ -53,7 +53,16 @@ export function ImportClients() {
   // Get all existing phone numbers for duplicate detection
   const existingPhones = new Set(clients.map(c => normalizePhone(c.phone)));
 
-  const processImportData = async (data: { name: string; phone: string; company?: string }[], maxLimit: number) => {
+  const processImportData = async (data: { 
+    name: string; 
+    phone: string; 
+    company?: string;
+    travelFromTo?: string;
+    travelMonth?: string;
+    travelPersons?: string;
+    travelClass?: string;
+    travelPayment?: string;
+  }[], maxLimit: number) => {
     if (data.length === 0) {
       toast.error('No valid entries found');
       return;
@@ -110,6 +119,11 @@ export function ImportClients() {
           status: defaultLeadStatus, // Use dynamic default from dropdown
           priority: 'Medium',
           followUpRequired: true,
+          travelFromTo: entry.travelFromTo,
+          travelMonth: entry.travelMonth,
+          travelPersons: entry.travelPersons,
+          travelClass: entry.travelClass,
+          travelPayment: entry.travelPayment
         });
         imported++;
         // Also add to existing phones set to prevent duplicates if user imports again
@@ -144,54 +158,100 @@ export function ImportClients() {
     }
   };
 
-  const parseExcelData = (workbook: XLSX.WorkBook): { name: string; phone: string; company?: string }[] => {
+  const parseExcelData = (workbook: XLSX.WorkBook) => {
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { header: 1 });
     
     if (jsonData.length === 0) return [];
 
-    const result: { name: string; phone: string; company?: string }[] = [];
+    const result: { 
+      name: string; 
+      phone: string; 
+      company?: string;
+      travelFromTo?: string;
+      travelMonth?: string;
+      travelPersons?: string;
+      travelClass?: string;
+      travelPayment?: string;
+    }[] = [];
     
     // Check if first row is header
     const firstRow = jsonData[0] as unknown[];
-    const hasHeader = firstRow && firstRow.some(cell => 
-      typeof cell === 'string' && 
-      (cell.toLowerCase().includes('name') || cell.toLowerCase().includes('phone') || cell.toLowerCase().includes('company') || cell.toLowerCase().includes('business'))
-    );
+    let nameIdx = -1, phoneIdx = -1, companyIdx = -1;
+    let travelFromToIdx = -1, travelMonthIdx = -1, travelPersonsIdx = -1, travelClassIdx = -1, travelPaymentIdx = -1;
+
+    let hasHeader = false;
     
+    if (firstRow && firstRow.length > 0) {
+      // First pass: exact matches
+      firstRow.forEach((cell, idx) => {
+        if (typeof cell !== 'string') return;
+        const val = cell.toLowerCase().trim();
+        hasHeader = true;
+
+        if (val === 'name' || val === 'client name') nameIdx = idx;
+        else if (val === 'phone' || val === 'mobile' || val === 'phone number' || val === 'contact number') phoneIdx = idx;
+        else if (val === 'company' || val === 'business name') companyIdx = idx;
+        else if (val === 'from and to' || val === 'from/to') travelFromToIdx = idx;
+        else if (val === 'month / dates' || val === 'month') travelMonthIdx = idx;
+        else if (val === 'persons' || val === 'pax') travelPersonsIdx = idx;
+        else if (val === 'class') travelClassIdx = idx;
+        else if (val === 'payment' || val === 'amount') travelPaymentIdx = idx;
+      });
+
+      // Second pass: partial matches if not found
+      firstRow.forEach((cell, idx) => {
+        if (typeof cell !== 'string') return;
+        const val = cell.toLowerCase().trim();
+
+        if (nameIdx === -1 && ((val.includes('name') && !val.includes('business') && !val.includes('company')) || val === 'client')) nameIdx = idx;
+        else if (phoneIdx === -1 && (val.includes('phone') || val.includes('mob') || val === 'number' || (val.includes('contact') && !val.includes('last')))) phoneIdx = idx;
+        else if (companyIdx === -1 && (val.includes('company') || val.includes('business'))) companyIdx = idx;
+        else if (travelFromToIdx === -1 && (val.includes('from') || val.includes('to'))) travelFromToIdx = idx;
+        else if (travelMonthIdx === -1 && (val.includes('month') || val.includes('date'))) travelMonthIdx = idx;
+        else if (travelPersonsIdx === -1 && (val.includes('person') || val.includes('pax'))) travelPersonsIdx = idx;
+        else if (travelClassIdx === -1 && val.includes('class')) travelClassIdx = idx;
+        else if (travelPaymentIdx === -1 && (val.includes('payment') || val.includes('amount'))) travelPaymentIdx = idx;
+      });
+    }
+    
+    // If we didn't find clear headers for phone, fallback to default positions
+    if (phoneIdx === -1) {
+       phoneIdx = 1; // commonly index 1
+       nameIdx = 0;
+       companyIdx = 2;
+    }
+
     const startIndex = hasHeader ? 1 : 0;
     
     for (let i = startIndex; i < jsonData.length; i++) {
       const row = jsonData[i] as unknown[];
       if (!row || row.length === 0) continue;
       
-      let name = '';
-      let phone = '';
-      let company = '';
+      const getString = (idx: number) => {
+        if (idx === -1 || idx >= row.length) return '';
+        return String(row[idx] || '').trim();
+      };
+
+      const phone = getString(phoneIdx);
+      if (!phone) continue;
+
+      let name = getString(nameIdx);
+      if (!name) name = phone;
+
+      const entry = {
+        name,
+        phone,
+        company: getString(companyIdx),
+        travelFromTo: getString(travelFromToIdx),
+        travelMonth: getString(travelMonthIdx),
+        travelPersons: getString(travelPersonsIdx),
+        travelClass: getString(travelClassIdx),
+        travelPayment: getString(travelPaymentIdx),
+      };
       
-      if (row.length === 1) {
-        // Only one column - assume it's phone
-        phone = String(row[0] || '').trim();
-        name = phone;
-      } else if (row.length === 2) {
-        // Two columns - name and phone
-        name = String(row[0] || '').trim();
-        phone = String(row[1] || '').trim();
-        if (!name) name = phone;
-      } else if (row.length >= 3) {
-        // Three or more columns - name, phone, and business name
-        name = String(row[0] || '').trim();
-        phone = String(row[1] || '').trim();
-        company = String(row[2] || '').trim();
-        if (!name) name = phone;
-      }
-      
-      if (phone) {
-        const entry: { name: string; phone: string; company?: string } = { name, phone };
-        if (company) entry.company = company;
-        result.push(entry);
-      }
+      result.push(entry);
     }
     
     return result;

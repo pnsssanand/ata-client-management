@@ -13,6 +13,12 @@ export interface Client {
   createdAt: Date;
   notes: Note[];
   dropdownValues: Record<string, string>;
+  // Travel Specific Fields
+  travelFromTo?: string;
+  travelMonth?: string;
+  travelPersons?: string;
+  travelClass?: string;
+  travelPayment?: string;
 }
 
 export interface Note {

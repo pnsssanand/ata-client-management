@@ -14,7 +14,13 @@ import {
   StickyNote,
   Edit2,
   X,
-  Download
+  Download,
+  Plane,
+  MapPin,
+  CalendarDays,
+  Users,
+  CreditCard,
+  Ticket
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +28,15 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -196,6 +211,14 @@ export const ClientCardNew = memo(function ClientCardNew({ client, isSelected }:
   const [editedName, setEditedName] = useState(client.name);
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [editedPhone, setEditedPhone] = useState(client.phone);
+
+  // Travel Details modal state
+  const [isTravelModalOpen, setIsTravelModalOpen] = useState(false);
+  const [travelFromTo, setTravelFromTo] = useState(client.travelFromTo || '');
+  const [travelMonth, setTravelMonth] = useState(client.travelMonth || '');
+  const [travelPersons, setTravelPersons] = useState(client.travelPersons || '');
+  const [travelClass, setTravelClass] = useState(client.travelClass || '');
+  const [travelPayment, setTravelPayment] = useState(client.travelPayment || '');
 
   const { dropdowns, updateDropdownValue, addNote, whatsappTemplates, updateClient } = useClientStore();
 
@@ -420,6 +443,22 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
   const handleCancelPhoneEdit = () => {
     setIsEditingPhone(false);
     setEditedPhone(client.phone);
+  };
+
+  const handleSaveTravelDetails = async () => {
+    try {
+      await updateClient(client.id, {
+        travelFromTo: travelFromTo.trim(),
+        travelMonth: travelMonth.trim(),
+        travelPersons: travelPersons.trim(),
+        travelClass: travelClass.trim(),
+        travelPayment: travelPayment.trim()
+      });
+      setIsTravelModalOpen(false);
+      toast.success('Travel details updated');
+    } catch (error) {
+      toast.error('Failed to update travel details');
+    }
   };
 
   const handleSaveContact = useCallback(() => {
@@ -768,6 +807,13 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
                   <Mail className="h-4 w-4" />
                   Send Email
                 </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setIsTravelModalOpen(true)}
+                  className="rounded-xl gap-2.5 cursor-pointer touch-manipulation py-2.5 font-medium hover:bg-primary/10 hover:text-primary"
+                >
+                  <Plane className="h-4 w-4" />
+                  Edit Travel Details
+                </DropdownMenuItem>
                 <DropdownMenuSeparator className="my-1.5" />
                 <DropdownMenuItem className="rounded-xl gap-2.5 text-destructive focus:text-destructive cursor-pointer touch-manipulation py-2.5 font-medium hover:bg-destructive/10">
                   Delete Client
@@ -776,6 +822,44 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
             </DropdownMenu>
           </div>
         </div>
+
+        {/* Travel Details Section */}
+        {(client.travelFromTo || client.travelMonth || client.travelPersons || client.travelClass || client.travelPayment) && (
+          <div className="px-4 sm:px-5 pb-4 sm:pb-5">
+            <div className="grid grid-cols-2 gap-y-2 gap-x-4 p-3 bg-muted/20 border border-border/40 rounded-xl text-xs sm:text-sm">
+              {client.travelFromTo && (
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <MapPin className="h-3.5 w-3.5 shrink-0 text-primary/70" />
+                  <span className="truncate" title={client.travelFromTo}>{client.travelFromTo}</span>
+                </div>
+              )}
+              {client.travelMonth && (
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <CalendarDays className="h-3.5 w-3.5 shrink-0 text-primary/70" />
+                  <span className="truncate">{client.travelMonth}</span>
+                </div>
+              )}
+              {client.travelPersons && (
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Users className="h-3.5 w-3.5 shrink-0 text-primary/70" />
+                  <span className="truncate">{client.travelPersons} pax</span>
+                </div>
+              )}
+              {client.travelClass && (
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Ticket className="h-3.5 w-3.5 shrink-0 text-primary/70" />
+                  <span className="truncate">{client.travelClass}</span>
+                </div>
+              )}
+              {client.travelPayment && (
+                <div className="col-span-2 flex items-center gap-1.5 text-muted-foreground mt-0.5">
+                  <CreditCard className="h-3.5 w-3.5 shrink-0 text-primary/70" />
+                  <span className="truncate">{client.travelPayment}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Notes Expanded Section */}
         <Collapsible open={notesExpanded} onOpenChange={setNotesExpanded}>
@@ -825,6 +909,75 @@ Emina requirement unda sir? Please let us know, we'll be happy to assist you.
           </CollapsibleContent>
         </Collapsible>
       </CardContent>
+
+      {/* Travel Details Modal */}
+      <Dialog open={isTravelModalOpen} onOpenChange={setIsTravelModalOpen}>
+        <DialogContent className="sm:max-w-[425px] rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plane className="h-5 w-5 text-primary" />
+              Edit Travel Details
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="travelFromTo">From and To</Label>
+              <Input
+                id="travelFromTo"
+                value={travelFromTo}
+                onChange={(e) => setTravelFromTo(e.target.value)}
+                placeholder="e.g. VIZIANAGARAM TO SEC"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="travelMonth">Month / Dates</Label>
+              <Input
+                id="travelMonth"
+                value={travelMonth}
+                onChange={(e) => setTravelMonth(e.target.value)}
+                placeholder="e.g. NOV AND AUG"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="travelPersons">Persons</Label>
+                <Input
+                  id="travelPersons"
+                  value={travelPersons}
+                  onChange={(e) => setTravelPersons(e.target.value)}
+                  placeholder="e.g. 15"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="travelClass">Class</Label>
+                <Input
+                  id="travelClass"
+                  value={travelClass}
+                  onChange={(e) => setTravelClass(e.target.value)}
+                  placeholder="e.g. SL, 3AC"
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="travelPayment">Payment / Comments</Label>
+              <Input
+                id="travelPayment"
+                value={travelPayment}
+                onChange={(e) => setTravelPayment(e.target.value)}
+                placeholder="e.g. Pending, Completed"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsTravelModalOpen(false)} className="rounded-xl">
+              Cancel
+            </Button>
+            <Button onClick={handleSaveTravelDetails} className="rounded-xl">
+              Save Details
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 });

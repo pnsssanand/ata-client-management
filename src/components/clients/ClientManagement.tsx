@@ -45,6 +45,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { ClientCardNew } from './ClientCardNew';
 import { useClientStore } from '@/stores/clientStore';
 import { toast } from 'sonner';
@@ -380,13 +388,28 @@ export function ClientManagement() {
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
+  // Add Client Modal State
+  const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
+  const [newClientData, setNewClientData] = useState({
+    name: '',
+    phone: '',
+    travelFromTo: '',
+    travelMonth: '',
+    travelPersons: '',
+    travelClass: '',
+    travelPayment: ''
+  });
+  const addClient = useClientStore((state) => state.addClient);
+
   // Excel matching feature state
   const [isMatchingExcel, setIsMatchingExcel] = useState(false);
   const [matchStats, setMatchStats] = useState<{
     total: number;
     matched: number;
     notFound: number;
+    matchedIds: Set<string>;
   } | null>(null);
+  const [showOnlyMatched, setShowOnlyMatched] = useState(false);
   const excelMatchInputRef = useRef<HTMLInputElement>(null);
 
   // Debounce search query for performance
@@ -502,6 +525,11 @@ export function ClientManagement() {
     const rangeEnd = dateRange.to ? endOfDay(dateRange.to) : null;
 
     return clients.filter((client) => {
+      // Show only matched filter
+      if (showOnlyMatched && matchStats) {
+        if (!matchStats.matchedIds.has(client.id)) return false;
+      }
+      
       if (hasSearch) {
         const matchesSearch =
           client.name.toLowerCase().includes(searchLower) ||
@@ -521,7 +549,7 @@ export function ClientManagement() {
       }
       return true;
     });
-  }, [clients, debouncedSearchQuery, activeTab, quickStatusFilter, dateFilter, dateRange]);
+  }, [clients, debouncedSearchQuery, activeTab, quickStatusFilter, dateFilter, dateRange, showOnlyMatched, matchStats]);
 
   // Paginated slice for rendering — never renders more than visibleCount at once
   const visibleClients = useMemo(
@@ -604,6 +632,43 @@ export function ClientManagement() {
     }
   }, [selectedClients, deleteMultipleClients]);
 
+  // Handle Add Client
+  const handleAddClientSubmit = async () => {
+    if (!newClientData.name.trim() || !newClientData.phone.trim()) {
+      toast.error('Name and Phone are required');
+      return;
+    }
+
+    try {
+      await addClient({
+        name: newClientData.name.trim(),
+        phone: newClientData.phone.trim(),
+        status: 'New Lead', // Default status
+        priority: 'medium',
+        followUpRequired: true,
+        travelFromTo: newClientData.travelFromTo.trim(),
+        travelMonth: newClientData.travelMonth.trim(),
+        travelPersons: newClientData.travelPersons.trim(),
+        travelClass: newClientData.travelClass.trim(),
+        travelPayment: newClientData.travelPayment.trim()
+      });
+      
+      toast.success('Client added successfully');
+      setIsAddClientModalOpen(false);
+      setNewClientData({
+        name: '',
+        phone: '',
+        travelFromTo: '',
+        travelMonth: '',
+        travelPersons: '',
+        travelClass: '',
+        travelPayment: ''
+      });
+    } catch (error) {
+      toast.error('Failed to add client');
+    }
+  };
+
   // Clear all filters
   const clearFilters = useCallback(() => {
     setSearchQuery('');
@@ -628,6 +693,11 @@ export function ClientManagement() {
       'Phone': client.phone,
       'Email': client.email || '',
       'Company': client.company || '',
+      'From and To': client.travelFromTo || '',
+      'Month / Dates': client.travelMonth || '',
+      'Persons': client.travelPersons || '',
+      'Class': client.travelClass || '',
+      'Payment': client.travelPayment || '',
       'Status': client.status,
       'Priority': client.priority,
       'Call Outcome': client.callOutcome || '',
@@ -647,6 +717,11 @@ export function ClientManagement() {
       { wch: 15 }, // Phone
       { wch: 25 }, // Email
       { wch: 20 }, // Company
+      { wch: 20 }, // From and To
+      { wch: 15 }, // Month / Dates
+      { wch: 10 }, // Persons
+      { wch: 10 }, // Class
+      { wch: 15 }, // Payment
       { wch: 15 }, // Status
       { wch: 10 }, // Priority
       { wch: 15 }, // Call Outcome
@@ -695,10 +770,43 @@ export function ClientManagement() {
       // Extract phone numbers from Excel
       const excelPhones: string[] = [];
       const firstRow = jsonData[0] as unknown[];
-      const hasHeader = firstRow && firstRow.some(cell =>
-        typeof cell === 'string' &&
-        (cell.toLowerCase().includes('name') || cell.toLowerCase().includes('phone'))
-      );
+      
+      let phoneIdx = -1;
+      let hasHeader = false;
+
+      if (firstRow && firstRow.length > 0) {
+        // First pass: look for exact matches for phone
+        firstRow.forEach((cell, idx) => {
+          if (typeof cell !== 'string') return;
+          hasHeader = true;
+          const val = cell.toLowerCase().trim();
+          if (val === 'phone' || val === 'mobile' || val === 'phone number' || val === 'mobile number' || val === 'contact number' || val === 'whatsapp') {
+            phoneIdx = idx;
+          }
+        });
+
+        // Second pass: if no exact match, look for partial matches
+        if (phoneIdx === -1) {
+          firstRow.forEach((cell, idx) => {
+            if (typeof cell !== 'string') return;
+            const val = cell.toLowerCase().trim();
+            if (phoneIdx === -1 && (
+              val.includes('phone') || 
+              val.includes('mob') || 
+              val === 'number' || 
+              (val.includes('contact') && !val.includes('last'))
+            )) {
+              phoneIdx = idx;
+            }
+          });
+        }
+      }
+
+      // If no explicit phone header found, fallback
+      if (phoneIdx === -1) {
+        phoneIdx = 1; // often it's in the second column
+      }
+
       const startIndex = hasHeader ? 1 : 0;
 
       for (let i = startIndex; i < jsonData.length; i++) {
@@ -706,18 +814,18 @@ export function ClientManagement() {
         if (!row || row.length === 0) continue;
 
         let phone = '';
-        if (row.length === 1) {
+        if (phoneIdx < row.length && phoneIdx >= 0) {
+          phone = String(row[phoneIdx] || '').trim();
+        }
+        
+        // Final fallback if the chosen index is empty, try the first column just in case
+        if (!phone && row.length > 0) {
           phone = String(row[0] || '').trim();
-        } else if (row.length >= 2) {
-          // Try second column first (common for Name, Phone format)
-          phone = String(row[1] || '').trim();
-          // If second column is empty, try first column
-          if (!phone) phone = String(row[0] || '').trim();
         }
 
         if (phone) {
           const normalizedPhone = normalizePhone(phone);
-          if (normalizedPhone.length >= 10) {
+          if (normalizedPhone) {
             excelPhones.push(normalizedPhone);
           }
         }
@@ -748,9 +856,11 @@ export function ClientManagement() {
       const stats = {
         total: excelPhones.length,
         matched: matchedClientIds.size,
-        notFound: excelPhones.length - matchedClientIds.size
+        notFound: excelPhones.length - matchedClientIds.size,
+        matchedIds: matchedClientIds
       };
       setMatchStats(stats);
+      setShowOnlyMatched(true);
 
       // Clear filters to show all matched clients
       setActiveTab('all');
@@ -789,6 +899,7 @@ export function ClientManagement() {
   // Clear match stats when selection changes manually
   const handleClearMatchStats = useCallback(() => {
     setMatchStats(null);
+    setShowOnlyMatched(false);
   }, []);
 
   return (
@@ -850,7 +961,7 @@ export function ClientManagement() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <Badge variant="secondary" className="bg-green-500/10 text-green-700 border-green-500/20">
                     {matchStats.matched} Matched
                   </Badge>
@@ -858,6 +969,19 @@ export function ClientManagement() {
                     <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-700 border-yellow-500/20">
                       {matchStats.notFound} Not Found
                     </Badge>
+                  )}
+                  {matchStats.matched > 0 && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-6 text-xs px-3 rounded-md ml-1 hover:bg-primary hover:text-primary-foreground border-primary/20"
+                      onClick={() => {
+                        setSelectedClients(new Set(matchStats.matchedIds));
+                        setShowOnlyMatched(true);
+                      }}
+                    >
+                      Select Matched
+                    </Button>
                   )}
                 </div>
                 <Button
@@ -1174,7 +1298,10 @@ export function ClientManagement() {
               </AlertDialogContent>
             </AlertDialog>
           )}
-          <Button className="rounded-xl gap-2 flex-1 sm:flex-none h-10 sm:h-11 text-xs sm:text-sm font-semibold shadow-md hover:shadow-lg touch-manipulation transition-all duration-300">
+          <Button 
+            onClick={() => setIsAddClientModalOpen(true)}
+            className="rounded-xl gap-2 flex-1 sm:flex-none h-10 sm:h-11 text-xs sm:text-sm font-semibold shadow-md hover:shadow-lg touch-manipulation transition-all duration-300"
+          >
             <Plus className="h-4 w-4" />
             <span>Add Client</span>
           </Button>
@@ -1244,6 +1371,96 @@ export function ClientManagement() {
           </CardContent>
         </Card>
       )}
+
+      {/* Add Client Dialog */}
+      <Dialog open={isAddClientModalOpen} onOpenChange={setIsAddClientModalOpen}>
+        <DialogContent className="sm:max-w-[425px] rounded-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl">Add New Lead</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="newName" className="font-semibold">Name *</Label>
+              <Input
+                id="newName"
+                value={newClientData.name}
+                onChange={(e) => setNewClientData({ ...newClientData, name: e.target.value })}
+                placeholder="Enter lead name"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="newPhone" className="font-semibold">Phone Number *</Label>
+              <Input
+                id="newPhone"
+                value={newClientData.phone}
+                onChange={(e) => setNewClientData({ ...newClientData, phone: e.target.value })}
+                placeholder="Enter phone number"
+              />
+            </div>
+            
+            <div className="mt-4 border-t pt-4">
+              <p className="text-sm font-bold text-muted-foreground mb-3 uppercase tracking-wide">Travel Details (Optional)</p>
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="newTravelFromTo">From and To</Label>
+                  <Input
+                    id="newTravelFromTo"
+                    value={newClientData.travelFromTo}
+                    onChange={(e) => setNewClientData({ ...newClientData, travelFromTo: e.target.value })}
+                    placeholder="e.g. VIZIANAGARAM TO SEC"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="newTravelMonth">Month / Dates</Label>
+                  <Input
+                    id="newTravelMonth"
+                    value={newClientData.travelMonth}
+                    onChange={(e) => setNewClientData({ ...newClientData, travelMonth: e.target.value })}
+                    placeholder="e.g. NOV AND AUG"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="newTravelPersons">Persons</Label>
+                    <Input
+                      id="newTravelPersons"
+                      value={newClientData.travelPersons}
+                      onChange={(e) => setNewClientData({ ...newClientData, travelPersons: e.target.value })}
+                      placeholder="e.g. 15"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="newTravelClass">Class</Label>
+                    <Input
+                      id="newTravelClass"
+                      value={newClientData.travelClass}
+                      onChange={(e) => setNewClientData({ ...newClientData, travelClass: e.target.value })}
+                      placeholder="e.g. SL, 3AC"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="newTravelPayment">Payment / Comments</Label>
+                  <Input
+                    id="newTravelPayment"
+                    value={newClientData.travelPayment}
+                    onChange={(e) => setNewClientData({ ...newClientData, travelPayment: e.target.value })}
+                    placeholder="e.g. Pending"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddClientModalOpen(false)} className="rounded-xl">
+              Cancel
+            </Button>
+            <Button onClick={handleAddClientSubmit} className="rounded-xl">
+              Add Lead
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
